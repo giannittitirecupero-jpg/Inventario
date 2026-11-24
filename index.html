@@ -714,8 +714,8 @@
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
-        const db = getFirestore(app);
-
+        const db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+		
         // Riferimenti Collezioni Firestore (Strict Path Rule: /artifacts/{appId}/public/data/{collectionName})
         const inventoryCol = collection(db, 'artifacts', appId, 'public', 'data', 'inventory');
         const statusesCol = collection(db, 'artifacts', appId, 'public', 'data', 'statuses');
