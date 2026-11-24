@@ -1,0 +1,1994 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TiRecupero - Inventario Ricambi FAP & Sistemi AdBlue</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,700;1,800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --tr-orange: #EB7A1C;
+            --tr-orange-hover: #D46810;
+            --tr-anthracite: #3C3C3B;
+            --tr-anthracite-dark: #2B2B2A;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f5f6;
+            color: #2B2B2A;
+        }
+        /* Ottimizzazione touch per tablet */
+        button, input, select {
+            touch-action: manipulation;
+        }
+        /* Nascondi scrollbar orizzontali superflue */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        /* Animazione toast */
+        @keyframes slideIn {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .toast-enter {
+            animation: slideIn 0.25s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Contenitore Notifiche Toast -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <!-- Modal Zoom Foto -->
+    <div id="photo-modal" class="fixed inset-0 bg-slate-950/90 z-50 hidden flex-col items-center justify-center p-4 backdrop-blur-sm" onclick="closePhotoModal()">
+        <div class="relative max-w-4xl w-full flex flex-col items-center" onclick="event.stopPropagation()">
+            <button onclick="closePhotoModal()" class="self-end mb-3 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+            <img id="photo-modal-img" src="" alt="Foto Ricambio" class="max-h-[75vh] w-auto rounded-2xl shadow-2xl border border-slate-700 object-contain bg-slate-900">
+            <div id="photo-modal-caption" class="mt-3 text-white font-medium text-center text-sm sm:text-base bg-slate-900/80 px-4 py-2 rounded-xl"></div>
+        </div>
+    </div>
+
+    <!-- Modal Aggiungi Nuovo Stato -->
+    <div id="status-modal" class="fixed inset-0 bg-neutral-950/60 z-50 hidden items-center justify-center p-4 backdrop-blur-xs">
+        <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-neutral-200">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-[#3C3C3B] flex items-center gap-2">
+                    <i data-lucide="tag" class="w-5 h-5 text-[#EB7A1C]"></i>
+                    Nuovo Stato Ricambio
+                </h3>
+                <button onclick="closeStatusModal()" class="text-neutral-400 hover:text-neutral-600 p-2 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <p class="text-sm text-neutral-600 mb-4">Aggiungi uno stato personalizzato (es. <em>Rigenerato FAP, Da testare, Danneggiato, Reso</em>). Sarà disponibile per tutti gli operatori.</p>
+            <input type="text" id="new-status-input" placeholder="Nome nuovo stato..." class="w-full px-4 py-3 rounded-xl border border-neutral-300 focus:ring-2 focus:ring-[#EB7A1C] focus:border-[#EB7A1C] outline-none text-base mb-4">
+            <div class="flex justify-end gap-3">
+                <button onclick="closeStatusModal()" class="px-4 py-2.5 rounded-xl border border-neutral-300 text-neutral-700 font-medium hover:bg-neutral-50">Annulla</button>
+                <button onclick="saveNewStatus()" class="px-5 py-2.5 rounded-xl bg-[#EB7A1C] hover:bg-[#D46810] text-white font-semibold shadow-sm transition">Aggiungi Stato</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Gestione Duplicati / Concorrenza -->
+    <div id="duplicate-modal" class="fixed inset-0 bg-neutral-950/70 z-50 hidden items-center justify-center p-4 backdrop-blur-xs">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 border-2 border-[#EB7A1C]">
+            <div class="flex items-start gap-3 mb-4">
+                <div class="bg-orange-100 text-[#EB7A1C] p-3 rounded-xl shrink-0">
+                    <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-[#3C3C3B]">Codice OEM già presente in inventario!</h3>
+                    <p class="text-sm text-neutral-600 mt-1">Il codice <span id="dup-oem-code" class="font-mono font-bold text-[#3C3C3B] bg-neutral-100 px-2 py-0.5 rounded"></span> risulta già registrato. Scegli come procedere:</p>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-2">Occorrenze esistenti (clicca per sommare +<span id="dup-add-qty">1</span> pz):</p>
+                <div id="dup-existing-list" class="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    <!-- Popolato dinamicamente -->
+                </div>
+            </div>
+
+            <div class="border-t border-neutral-200 pt-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+                <button onclick="closeDuplicateModal()" class="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-neutral-300 text-neutral-700 font-medium hover:bg-neutral-50">
+                    Annulla
+                </button>
+                <button onclick="confirmInsertAsNewRow()" class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#3C3C3B] hover:bg-[#2B2B2A] text-white font-semibold flex items-center justify-center gap-2 shadow-sm transition">
+                    <i data-lucide="plus-square" class="w-4 h-4"></i>
+                    Registra come Nuova Riga / Ubicazione
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Modifica Articolo -->
+    <div id="edit-modal" class="fixed inset-0 bg-neutral-950/60 z-50 hidden items-center justify-center p-4 backdrop-blur-xs overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 border border-neutral-200 my-8">
+            <div class="flex items-center justify-between mb-5 pb-3 border-b border-neutral-100">
+                <h3 class="text-xl font-bold text-[#3C3C3B] flex items-center gap-2">
+                    <i data-lucide="edit-3" class="w-5 h-5 text-[#EB7A1C]"></i>
+                    Modifica Ricambio
+                </h3>
+                <button onclick="closeEditModal()" class="text-neutral-400 hover:text-neutral-600 p-2 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form id="edit-form" onsubmit="handleEditSubmit(event)" class="space-y-4">
+                <input type="hidden" id="edit-id">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-neutral-700 mb-1">Codice OEM *</label>
+                        <input type="text" id="edit-oem" required class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 font-mono uppercase focus:ring-2 focus:ring-[#EB7A1C] outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-neutral-700 mb-1">Quantità *</label>
+                        <input type="number" id="edit-qty" min="0" required class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 font-bold focus:ring-2 focus:ring-[#EB7A1C] outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-neutral-700 mb-1">Descrizione *</label>
+                    <input type="text" id="edit-desc" required class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:ring-2 focus:ring-[#EB7A1C] outline-none">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-neutral-700 mb-1">Ubicazione *</label>
+                        <input type="text" id="edit-location" list="locations-datalist" required class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:ring-2 focus:ring-[#EB7A1C] outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-neutral-700 mb-1">Stato *</label>
+                        <select id="edit-status" required class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 bg-white focus:ring-2 focus:ring-[#EB7A1C] outline-none"></select>
+                    </div>
+                </div>
+
+                <!-- Campi Finanziari (Visibili solo ad Amministratori / Autorizzati) -->
+                <div id="edit-finance-fields" class="hidden grid-cols-1 sm:grid-cols-2 gap-4 bg-orange-50/80 p-3.5 rounded-xl border border-orange-200">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-orange-900 mb-1">Costo Acquisto (€)</label>
+                        <input type="number" step="0.01" min="0" id="edit-cost" placeholder="0.00" class="w-full px-3.5 py-2 rounded-xl border border-orange-300 bg-white focus:ring-2 focus:ring-[#EB7A1C] outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-orange-900 mb-1">Prezzo Vendita (€)</label>
+                        <input type="number" step="0.01" min="0" id="edit-price" placeholder="0.00" class="w-full px-3.5 py-2 rounded-xl border border-orange-300 bg-white focus:ring-2 focus:ring-[#EB7A1C] outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-neutral-700 mb-1">Note</label>
+                    <input type="text" id="edit-notes" placeholder="Note opzionali..." class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:ring-2 focus:ring-[#EB7A1C] outline-none">
+                </div>
+
+                <!-- Gestione Foto in Modifica -->
+                <div>
+                    <label class="block text-sm font-semibold text-neutral-700 mb-1">Foto Ricambio</label>
+                    <div class="flex items-center gap-4">
+                        <img id="edit-photo-preview" src="" class="hidden w-16 h-16 rounded-xl object-cover border border-neutral-300">
+                        <label class="cursor-pointer inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-[#3C3C3B] font-medium text-sm transition">
+                            <i data-lucide="camera" class="w-4 h-4 text-[#EB7A1C]"></i>
+                            <span>Cambia / Scatta Foto</span>
+                            <input type="file" id="edit-photo-input" accept="image/*" capture="environment" class="hidden" onchange="handleEditPhotoSelect(event)">
+                        </label>
+                        <button type="button" id="edit-remove-photo-btn" onclick="removeEditPhoto()" class="hidden text-xs text-red-600 hover:underline font-medium">Rimuovi foto</button>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4 border-t border-neutral-100">
+                    <button type="button" onclick="closeEditModal()" class="px-5 py-2.5 rounded-xl border border-neutral-300 text-neutral-700 font-medium hover:bg-neutral-50">Annulla</button>
+                    <button type="submit" class="px-6 py-2.5 rounded-xl bg-[#EB7A1C] hover:bg-[#D46810] text-white font-semibold shadow-sm transition">Salva Modifiche</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Conferma Eliminazione -->
+    <div id="delete-modal" class="fixed inset-0 bg-neutral-950/60 z-50 hidden items-center justify-center p-4 backdrop-blur-xs">
+        <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-neutral-200">
+            <h3 class="text-lg font-bold text-[#3C3C3B] mb-2">Conferma Eliminazione</h3>
+            <p class="text-sm text-neutral-600 mb-5">Sei sicuro di voler eliminare definitivamente questo ricambio dall'inventario? L'operazione non è reversibile.</p>
+            <div class="flex justify-end gap-3">
+                <button onclick="closeDeleteModal()" class="px-4 py-2.5 rounded-xl border border-neutral-300 text-neutral-700 font-medium hover:bg-neutral-50">Annulla</button>
+                <button id="confirm-delete-btn" class="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold shadow-sm">Elimina</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Gestione Utenti & Permessi (Solo Amministratori) -->
+    <div id="users-modal" class="fixed inset-0 bg-neutral-950/60 z-50 hidden items-center justify-center p-4 backdrop-blur-xs overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6 border border-neutral-200 my-8">
+            <div class="flex items-center justify-between mb-4 pb-3 border-b border-neutral-200">
+                <div>
+                    <h3 class="text-xl font-bold text-[#3C3C3B] flex items-center gap-2">
+                        <i data-lucide="shield-check" class="w-6 h-6 text-[#EB7A1C]"></i>
+                        Gestione Utenti & Permessi TiRecupero
+                    </h3>
+                    <p class="text-xs text-neutral-500 mt-0.5">Controlla chi può accedere al magazzino e chi è autorizzato a visualizzare Costi e Prezzi.</p>
+                </div>
+                <button onclick="closeUsersModal()" class="text-neutral-400 hover:text-neutral-600 p-2 rounded-lg">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+
+            <!-- Pre-autorizzazione Email -->
+            <div class="bg-neutral-50 p-4 rounded-xl border border-neutral-200 mb-5">
+                <h4 class="text-sm font-bold text-[#3C3C3B] mb-2">Pre-autorizza nuovo utente tramite Email</h4>
+                <form onsubmit="handlePreAuthorizeEmail(event)" class="flex flex-col sm:flex-row gap-2">
+                    <input type="email" id="preauth-email" required placeholder="operatore@tirecupero.it" class="flex-1 px-3.5 py-2.5 rounded-xl border border-neutral-300 text-sm outline-none focus:ring-2 focus:ring-[#EB7A1C]">
+                    <select id="preauth-role" class="px-3.5 py-2.5 rounded-xl border border-neutral-300 bg-white text-sm font-medium outline-none">
+                        <option value="operator">Operatore Magazzino (No Costi/Prezzi)</option>
+                        <option value="admin">Amministratore / Autorizzato Finanza</option>
+                    </select>
+                    <button type="submit" class="px-4 py-2.5 rounded-xl bg-[#EB7A1C] hover:bg-[#D46810] text-white text-sm font-semibold whitespace-nowrap transition">
+                        Autorizza Email
+                    </button>
+                </form>
+            </div>
+
+            <!-- Lista Utenti Registrati / Pre-autorizzati -->
+            <div class="space-y-2 max-h-80 overflow-y-auto" id="users-list-container">
+                <!-- Popolato dinamicamente -->
+            </div>
+
+            <div class="mt-5 pt-3 border-t border-neutral-100 flex justify-end">
+                <button onclick="closeUsersModal()" class="px-5 py-2.5 rounded-xl bg-[#3C3C3B] hover:bg-[#2B2B2A] text-white font-semibold text-sm transition">Chiudi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCHERMATA DI AUTENTICAZIONE / ATTESA APPROVAZIONE -->
+    <div id="auth-screen" class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-[#2B2B2A] via-[#3C3C3B] to-[#1f1f1e]">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-7 sm:p-8 border border-neutral-200">
+            <!-- Logo Ufficiale TiRecupero SVG ad alta definizione -->
+            <div class="flex flex-col items-center text-center mb-6">
+                <div class="w-full max-w-[320px] mx-auto mb-2">
+                    <svg viewBox="0 0 560 175" class="w-full h-auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TiRecupero - Rigenerazione FAP e Sistemi AdBlue">
+                        <!-- Freccia Arancione in alto a sinistra + linea spezzata -->
+                        <path d="M 162 28 H 72 V 64 H 82 V 38 H 162 Z" fill="#EB7A1C"/>
+                        <path d="M 162 118 H 52 V 68 H 24 L 56 10 L 88 68 H 64 V 108 H 162 Z" fill="#EB7A1C"/>
+
+                        <!-- Freccia Antracite in basso a destra + linea spezzata -->
+                        <path d="M 174 28 H 492 V 76 H 520 L 488 144 L 456 76 H 480 V 38 H 174 Z" fill="#3C3C3B"/>
+                        <path d="M 174 118 H 474 V 76 H 464 V 108 H 174 Z" fill="#3C3C3B"/>
+
+                        <!-- Scritta TiRecupero in grassetto italico -->
+                        <text x="88" y="98" font-family="'Inter', Arial, Helvetica, sans-serif" font-weight="800" font-style="italic" font-size="68" letter-spacing="-2">
+                            <tspan fill="#EB7A1C">Ti</tspan><tspan fill="#3C3C3B">Recupero</tspan>
+                        </text>
+
+                        <!-- Sottotitolo RIGENERAZIONE FAP E SISTEMI ADBLUE -->
+                        <text x="282" y="156" text-anchor="middle" font-family="'Inter', 'Arial Narrow', Arial, sans-serif" font-weight="800" font-style="italic" font-size="21" letter-spacing="0.9" fill="#3C3C3B">
+                            RIGENERAZIONE FAP E SISTEMI ADBLUE
+                        </text>
+                    </svg>
+                </div>
+                <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-50 border border-orange-200 text-[#EB7A1C] text-xs font-bold uppercase tracking-wider">
+                    <i data-lucide="warehouse" class="w-3.5 h-3.5"></i>
+                    <span>Portale Inventario Magazzino</span>
+                </div>
+            </div>
+
+            <!-- Stato caricamento auth -->
+            <div id="auth-loading" class="py-8 flex flex-col items-center justify-center text-neutral-500">
+                <div class="w-8 h-8 border-4 border-[#EB7A1C] border-t-transparent rounded-full animate-spin mb-3"></div>
+                <p class="text-sm font-medium">Verifica sessione in corso...</p>
+            </div>
+
+            <!-- Form Login / Registrazione -->
+            <div id="auth-forms-container" class="hidden space-y-5">
+                <div class="flex rounded-xl bg-neutral-100 p-1">
+                    <button type="button" id="tab-login" onclick="switchAuthTab('login')" class="flex-1 py-2 text-sm font-semibold rounded-lg bg-white text-[#3C3C3B] shadow-xs transition">Accedi</button>
+                    <button type="button" id="tab-register" onclick="switchAuthTab('register')" class="flex-1 py-2 text-sm font-semibold rounded-lg text-neutral-600 hover:text-[#3C3C3B] transition">Registrati</button>
+                </div>
+
+                <form id="email-auth-form" onsubmit="handleEmailAuth(event)" class="space-y-3.5">
+                    <div id="register-name-group" class="hidden">
+                        <label class="block text-xs font-bold uppercase text-neutral-600 mb-1">Nome e Cognome Operatore</label>
+                        <input type="text" id="auth-name" placeholder="Mario Rossi" class="w-full px-4 py-3 rounded-xl border border-neutral-300 focus:ring-2 focus:ring-[#EB7A1C] outline-none text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-neutral-600 mb-1">Email Aziendale</label>
+                        <input type="email" id="auth-email" required placeholder="nome@tirecupero.it" class="w-full px-4 py-3 rounded-xl border border-neutral-300 focus:ring-2 focus:ring-[#EB7A1C] outline-none text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-neutral-600 mb-1">Password</label>
+                        <input type="password" id="auth-password" required minlength="6" placeholder="••••••••" class="w-full px-4 py-3 rounded-xl border border-neutral-300 focus:ring-2 focus:ring-[#EB7A1C] outline-none text-sm">
+                    </div>
+                    <button type="submit" id="auth-submit-btn" class="w-full py-3.5 rounded-xl bg-[#EB7A1C] hover:bg-[#D46810] text-white font-bold text-sm shadow-md shadow-orange-600/20 transition">
+                        Accedi al Magazzino
+                    </button>
+                </form>
+
+                <div class="relative flex py-1 items-center">
+                    <div class="flex-grow border-t border-neutral-200"></div>
+                    <span class="flex-shrink mx-3 text-xs text-neutral-400 font-medium uppercase">oppure</span>
+                    <div class="flex-grow border-t border-neutral-200"></div>
+                </div>
+
+                <button type="button" onclick="handleGoogleSignIn()" class="w-full py-3 px-4 rounded-xl border border-neutral-300 hover:bg-neutral-50 text-[#3C3C3B] font-semibold text-sm flex items-center justify-center gap-3 transition">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+                        <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24z"/>
+                        <path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14z"/>
+                        <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96z"/>
+                    </svg>
+                    Continua con Google
+                </button>
+
+                <!-- Accesso Rapido Ambiente Demo / Test se necessario -->
+                <div class="pt-2 text-center">
+                    <button type="button" onclick="handleQuickDemoAccess()" class="text-xs text-neutral-400 hover:text-[#EB7A1C] underline transition">
+                        Accesso rapido operatore (Sessione immediata)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Schermata Utente Registrato ma Non Ancora Approvato -->
+            <div id="pending-approval-screen" class="hidden text-center space-y-4 py-4">
+                <div class="w-14 h-14 bg-orange-100 text-[#EB7A1C] rounded-full flex items-center justify-center mx-auto">
+                    <i data-lucide="clock" class="w-7 h-7"></i>
+                </div>
+                <h2 class="text-lg font-bold text-[#3C3C3B]">Account in attesa di autorizzazione</h2>
+                <p class="text-sm text-neutral-600">
+                    Ciao <span id="pending-user-email" class="font-semibold text-[#3C3C3B]"></span>, la tua richiesta di accesso è stata registrata. Un Amministratore TiRecupero deve abilitare il tuo profilo prima che tu possa operare sull'inventario.
+                </p>
+                <div class="pt-2">
+                    <button onclick="handleLogout()" class="px-5 py-2.5 rounded-xl border border-neutral-300 text-neutral-700 font-semibold text-sm hover:bg-neutral-50">
+                        Esci / Cambia Account
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- APPLICAZIONE PRINCIPALE (Visibile dopo login autorizzato) -->
+    <div id="app-screen" class="hidden flex-1 flex flex-col">
+        
+        <!-- Header Topbar con Logo TiRecupero su sfondo pulito e accento antracite/arancione -->
+        <header class="bg-white text-[#3C3C3B] sticky top-0 z-30 shadow-sm border-b-2 border-[#EB7A1C]">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 h-18 py-2 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3 sm:gap-4">
+                    <!-- Logo Aziendale TiRecupero nell'Header -->
+                    <div class="w-44 sm:w-52 shrink-0">
+                        <svg viewBox="0 0 560 175" class="w-full h-auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TiRecupero Logo">
+                            <path d="M 162 28 H 72 V 64 H 82 V 38 H 162 Z" fill="#EB7A1C"/>
+                            <path d="M 162 118 H 52 V 68 H 24 L 56 10 L 88 68 H 64 V 108 H 162 Z" fill="#EB7A1C"/>
+                            <path d="M 174 28 H 492 V 76 H 520 L 488 144 L 456 76 H 480 V 38 H 174 Z" fill="#3C3C3B"/>
+                            <path d="M 174 118 H 474 V 76 H 464 V 108 H 174 Z" fill="#3C3C3B"/>
+                            <text x="88" y="98" font-family="'Inter', Arial, Helvetica, sans-serif" font-weight="800" font-style="italic" font-size="68" letter-spacing="-2">
+                                <tspan fill="#EB7A1C">Ti</tspan><tspan fill="#3C3C3B">Recupero</tspan>
+                            </text>
+                            <text x="282" y="156" text-anchor="middle" font-family="'Inter', 'Arial Narrow', Arial, sans-serif" font-weight="800" font-style="italic" font-size="21" letter-spacing="0.9" fill="#3C3C3B">
+                                RIGENERAZIONE FAP E SISTEMI ADBLUE
+                            </text>
+                        </svg>
+                    </div>
+
+                    <div class="hidden sm:block h-9 w-px bg-neutral-200"></div>
+
+                    <div class="hidden sm:block">
+                        <div class="font-extrabold text-sm text-[#3C3C3B] leading-tight">Inventario Ricambi OEM</div>
+                        <div class="flex items-center gap-1.5 text-xs text-neutral-500 mt-0.5">
+                            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span>Cloud Sincronizzato</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 sm:gap-3">
+                    <!-- Badge Utente & Ruolo -->
+                    <div class="hidden md:flex flex-col items-end mr-1">
+                        <span id="header-user-name" class="text-xs font-bold text-[#3C3C3B]"></span>
+                        <span id="header-user-role-badge" class="text-[11px] font-bold px-2 py-0.5 rounded-full"></span>
+                    </div>
+
+                    <!-- Bottone Gestione Utenti (Solo Admin) -->
+                    <button id="btn-manage-users" onclick="openUsersModal()" class="hidden items-center gap-1.5 px-3 py-2 rounded-xl bg-[#3C3C3B] hover:bg-[#2B2B2A] text-white text-xs sm:text-sm font-semibold transition shadow-xs" title="Gestisci Utenti e Permessi">
+                        <i data-lucide="users" class="w-4 h-4 text-[#EB7A1C]"></i>
+                        <span class="hidden sm:inline">Utenti</span>
+                        <span id="pending-users-count" class="hidden bg-[#EB7A1C] text-white text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">0</span>
+                    </button>
+
+                    <!-- Bottone Esporta CSV -->
+                    <button onclick="exportToCSV()" class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#EB7A1C] hover:bg-[#D46810] text-white text-xs sm:text-sm font-semibold shadow-sm transition">
+                        <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                        <span>Esporta CSV</span>
+                    </button>
+
+                    <!-- Bottone Logout -->
+                    <button onclick="handleLogout()" class="p-2 rounded-xl bg-neutral-100 hover:bg-red-50 text-neutral-600 hover:text-red-600 border border-neutral-200 transition" title="Disconnetti">
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6 flex-1">
+            
+            <!-- KPI / Statistiche Rapide -->
+            <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div class="bg-white p-4 rounded-2xl border border-neutral-200 shadow-xs flex items-center gap-3.5">
+                    <div class="bg-orange-50 text-[#EB7A1C] p-3 rounded-xl shrink-0">
+                        <i data-lucide="layers" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-neutral-500 uppercase">Righe / Codici</p>
+                        <p id="stat-total-rows" class="text-xl sm:text-2xl font-extrabold text-[#3C3C3B]">0</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl border border-neutral-200 shadow-xs flex items-center gap-3.5">
+                    <div class="bg-neutral-100 text-[#3C3C3B] p-3 rounded-xl shrink-0">
+                        <i data-lucide="boxes" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-neutral-500 uppercase">Totale Pezzi</p>
+                        <p id="stat-total-pieces" class="text-xl sm:text-2xl font-extrabold text-[#3C3C3B]">0</p>
+                    </div>
+                </div>
+
+                <!-- KPI Finanziari: Nascosti agli operatori non autorizzati -->
+                <div id="kpi-total-cost-card" class="hidden bg-white p-4 rounded-2xl border border-orange-200 shadow-xs items-center gap-3.5">
+                    <div class="bg-orange-50 text-[#EB7A1C] p-3 rounded-xl shrink-0">
+                        <i data-lucide="wallet" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-orange-900 uppercase">Valore Costo Tot.</p>
+                        <p id="stat-total-cost" class="text-xl sm:text-2xl font-extrabold text-[#3C3C3B]">€ 0,00</p>
+                    </div>
+                </div>
+
+                <div id="kpi-total-price-card" class="hidden bg-white p-4 rounded-2xl border border-emerald-200 shadow-xs items-center gap-3.5">
+                    <div class="bg-emerald-50 text-emerald-600 p-3 rounded-xl shrink-0">
+                        <i data-lucide="badge-euro" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-emerald-800 uppercase">Valore Vendita Tot.</p>
+                        <p id="stat-total-price" class="text-xl sm:text-2xl font-extrabold text-[#3C3C3B]">€ 0,00</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Modulo Nuovo Inserimento Ricambio -->
+            <section class="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
+                <div class="bg-[#3C3C3B] text-white px-5 py-3.5 flex items-center justify-between">
+                    <h2 class="font-bold flex items-center gap-2 text-base sm:text-lg">
+                        <i data-lucide="plus-circle" class="w-5 h-5 text-[#EB7A1C]"></i>
+                        Registra Ricambio in Inventario
+                    </h2>
+                    <span class="text-xs text-neutral-300 hidden sm:inline">Controllo duplicati automatico attivo</span>
+                </div>
+
+                <form id="add-part-form" onsubmit="handleFormSubmit(event)" class="p-5 space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                        
+                        <!-- Codice OEM -->
+                        <div class="md:col-span-4">
+                            <label class="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">Codice OEM *</label>
+                            <div class="relative">
+                                <input type="text" id="input-oem" required placeholder="Es. 1K0615301AA" oninput="handleOemInput(this)" class="w-full pl-3.5 pr-10 py-3 rounded-xl border border-neutral-300 font-mono text-base font-bold uppercase focus:ring-2 focus:ring-[#EB7A1C] focus:border-[#EB7A1C] outline-none bg-neutral-50/50">
+                                <button type="button" onclick="clearOemInput()" id="btn-clear-oem" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 p-1">
+                                    <i data-lucide="x-circle" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                            <p id="oem-live-hint" class="text-xs text-[#EB7A1C] font-semibold mt-1 hidden flex items-center gap-1">
+                                <i data-lucide="info" class="w-3.5 h-3.5"></i>
+                                <span>Codice già presente in magazzino!</span>
+                            </p>
+                        </div>
+
+                        <!-- Descrizione + Ricerca Web -->
+                        <div class="md:col-span-5">
+                            <label class="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">Descrizione Ricambio *</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="input-desc" required placeholder="Es. Filtro antiparticolato FAP / Sensore NOx..." class="flex-1 px-3.5 py-3 rounded-xl border border-neutral-300 text-base focus:ring-2 focus:ring-[#EB7A1C] focus:border-[#EB7A1C] outline-none">
+                                <button type="button" onclick="searchOemOnWeb()" class="px-3.5 py-3 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#EB7A1C] border border-orange-200 font-semibold text-xs sm:text-sm flex items-center gap-1.5 shrink-0 transition" title="Cerca questo codice OEM su Google per recuperare la descrizione">
+                                    <i data-lucide="globe" class="w-4 h-4"></i>
+                                    <span>Cerca Web</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Quantità con pulsanti grandi touch -->
+                        <div class="md:col-span-3">
+                            <label class="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">Quantità *</label>
+                            <div class="flex items-center">
+                                <button type="button" onclick="adjustFormQty(-1)" class="w-12 h-12 rounded-l-xl bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 border border-neutral-300 flex items-center justify-center text-[#3C3C3B] font-bold text-xl transition">
+                                    -
+                                </button>
+                                <input type="number" id="input-qty" value="1" min="1" required class="w-full h-12 border-y border-neutral-300 text-center font-extrabold text-lg text-[#3C3C3B] outline-none">
+                                <button type="button" onclick="adjustFormQty(1)" class="w-12 h-12 rounded-r-xl bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 border border-neutral-300 flex items-center justify-center text-[#3C3C3B] font-bold text-xl transition">
+                                    +
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-4 items-end">
+                        
+                        <!-- Ubicazione -->
+                        <div class="md:col-span-3">
+                            <label class="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">Ubicazione / Scaffale *</label>
+                            <input type="text" id="input-location" list="locations-datalist" required placeholder="Es. Scaffale A2" class="w-full px-3.5 py-3 rounded-xl border border-neutral-300 text-base focus:ring-2 focus:ring-[#EB7A1C] outline-none">
+                            <datalist id="locations-datalist"></datalist>
+                        </div>
+
+                        <!-- Stato + Aggiungi nuovo stato -->
+                        <div class="md:col-span-3">
+                            <label class="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">Stato Ricambio *</label>
+                            <div class="flex gap-1.5">
+                                <select id="input-status" required class="flex-1 px-3.5 py-3 rounded-xl border border-neutral-300 bg-white text-base font-medium focus:ring-2 focus:ring-[#EB7A1C] outline-none">
+                                    <option value="Nuovo">Nuovo</option>
+                                    <option value="Usato">Usato</option>
+                                </select>
+                                <button type="button" onclick="openStatusModal()" class="px-3.5 py-3 rounded-xl bg-neutral-100 hover:bg-neutral-200 border border-neutral-300 text-[#3C3C3B] font-bold transition" title="Aggiungi nuovo stato personalizzato">
+                                    <i data-lucide="plus" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Foto da Tablet / PC -->
+                        <div class="md:col-span-3">
+                            <label class="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">Foto (Opzionale)</label>
+                            <div class="flex items-center gap-2">
+                                <label class="flex-1 cursor-pointer h-12 px-3.5 rounded-xl border border-dashed border-neutral-400 hover:border-[#EB7A1C] hover:bg-orange-50/50 flex items-center justify-center gap-2 text-neutral-700 font-semibold text-sm transition">
+                                    <i data-lucide="camera" class="w-5 h-5 text-[#EB7A1C]"></i>
+                                    <span id="photo-btn-label" class="truncate">Scatta / Allega</span>
+                                    <input type="file" id="input-photo" accept="image/*" capture="environment" class="hidden" onchange="handlePhotoSelect(event)">
+                                </label>
+                                <div id="photo-preview-wrapper" class="hidden relative w-12 h-12 shrink-0">
+                                    <img id="photo-preview-thumb" src="" class="w-12 h-12 rounded-xl object-cover border border-neutral-300">
+                                    <button type="button" onclick="clearSelectedPhoto()" class="absolute -top-1.5 -right-1.5 bg-red-600 text-white rounded-full p-0.5 shadow">
+                                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Note -->
+                        <div class="md:col-span-3">
+                            <label class="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1.5">Note (Opzionale)</label>
+                            <input type="text" id="input-notes" placeholder="Marca, compatibilità..." class="w-full px-3.5 py-3 rounded-xl border border-neutral-300 text-base focus:ring-2 focus:ring-[#EB7A1C] outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Riga Campi Economici (VISIBILE SOLO AD UTENTI AUTORIZZATI / ADMIN) -->
+                    <div id="form-finance-section" class="hidden bg-orange-50/80 border border-orange-200 rounded-xl p-4">
+                        <div class="flex items-center gap-2 text-orange-950 font-bold text-xs uppercase tracking-wider mb-3">
+                            <i data-lucide="lock" class="w-3.5 h-3.5 text-[#EB7A1C]"></i>
+                            <span>Dati Economici Riservati (Opzionali)</span>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-orange-950 mb-1">Costo di Acquisto Unitario (€)</label>
+                                <input type="number" step="0.01" min="0" id="input-cost" placeholder="Es. 45.50" class="w-full px-3.5 py-2.5 rounded-xl border border-orange-300 bg-white text-base focus:ring-2 focus:ring-[#EB7A1C] outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-orange-950 mb-1">Prezzo di Vendita Unitario (€)</label>
+                                <input type="number" step="0.01" min="0" id="input-price" placeholder="Es. 89.00" class="w-full px-3.5 py-2.5 rounded-xl border border-orange-300 bg-white text-base focus:ring-2 focus:ring-[#EB7A1C] outline-none">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-2 flex flex-col sm:flex-row justify-end gap-3">
+                        <button type="button" onclick="resetAddForm()" class="px-5 py-3 rounded-xl border border-neutral-300 text-neutral-700 font-semibold hover:bg-neutral-50 text-sm transition">
+                            Pulisci Campi
+                        </button>
+                        <button type="submit" id="btn-submit-part" class="px-7 py-3.5 rounded-xl bg-[#EB7A1C] hover:bg-[#D46810] active:bg-[#b8580a] text-white font-bold text-base shadow-md shadow-orange-600/20 flex items-center justify-center gap-2 transition">
+                            <i data-lucide="save" class="w-5 h-5"></i>
+                            <span>Salva in Inventario</span>
+                        </button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Barra Filtri ed Elenco Inventario -->
+            <section class="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
+                <div class="p-4 sm:p-5 border-b border-neutral-200 bg-neutral-50/80 space-y-3">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <h2 class="font-bold text-[#3C3C3B] text-base sm:text-lg flex items-center gap-2">
+                            <i data-lucide="list-filter" class="w-5 h-5 text-[#EB7A1C]"></i>
+                            Elenco Articoli Censiti
+                            <span id="filtered-count-badge" class="text-xs font-bold bg-orange-100 text-[#EB7A1C] px-2.5 py-0.5 rounded-full">0</span>
+                        </h2>
+                        <button onclick="resetFilters()" class="text-xs font-semibold text-[#EB7A1C] hover:text-[#D46810] self-start sm:self-auto">
+                            Reimposta filtri
+                        </button>
+                    </div>
+
+                    <!-- Controlli Filtro -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div class="relative">
+                            <i data-lucide="search" class="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                            <input type="text" id="filter-search" oninput="applyFilters()" placeholder="Cerca Codice OEM o Descrizione..." class="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-neutral-300 bg-white text-sm focus:ring-2 focus:ring-[#EB7A1C] outline-none">
+                        </div>
+
+                        <div>
+                            <select id="filter-location" onchange="applyFilters()" class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 bg-white text-sm focus:ring-2 focus:ring-[#EB7A1C] outline-none">
+                                <option value="">Tutte le ubicazioni</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <select id="filter-status" onchange="applyFilters()" class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 bg-white text-sm focus:ring-2 focus:ring-[#EB7A1C] outline-none">
+                                <option value="">Tutti gli stati</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <select id="filter-user" onchange="applyFilters()" class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 bg-white text-sm focus:ring-2 focus:ring-[#EB7A1C] outline-none">
+                                <option value="">Tutti gli operatori</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabella Responsive -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-neutral-100/90 border-b border-neutral-200 text-[11px] font-bold uppercase tracking-wider text-neutral-600">
+                                <th class="py-3.5 px-4">Foto</th>
+                                <th class="py-3.5 px-4">Codice OEM</th>
+                                <th class="py-3.5 px-4">Descrizione & Note</th>
+                                <th class="py-3.5 px-4">Ubicazione</th>
+                                <th class="py-3.5 px-4">Stato</th>
+                                <th class="py-3.5 px-4 text-center">Quantità</th>
+                                <th id="th-finance" class="hidden py-3.5 px-4 text-right">Costo / Prezzo</th>
+                                <th class="py-3.5 px-4 hidden lg:table-cell">Operatore</th>
+                                <th class="py-3.5 px-4 text-right">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-tbody" class="divide-y divide-neutral-200 text-sm">
+                            <!-- Righe generate dinamicamente -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Stato Vuoto -->
+                <div id="empty-state" class="hidden py-14 px-4 text-center">
+                    <div class="w-14 h-14 bg-neutral-100 text-neutral-400 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                        <i data-lucide="package-open" class="w-7 h-7"></i>
+                    </div>
+                    <h3 class="font-bold text-[#3C3C3B] text-base">Nessun ricambio trovato</h3>
+                    <p class="text-sm text-neutral-500 mt-1 max-w-md mx-auto">Inizia registrando il primo codice OEM tramite il modulo qui sopra oppure modifica i filtri di ricerca.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Script Principale con Firebase Modular SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInWithEmailAndPassword, 
+            createUserWithEmailAndPassword, 
+            signInWithPopup, 
+            GoogleAuthProvider, 
+            signOut, 
+            onAuthStateChanged,
+            signInAnonymously,
+            signInWithCustomToken,
+            updateProfile
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            collection, 
+            doc, 
+            setDoc, 
+            getDoc, 
+            getDocs, 
+            addDoc, 
+            updateDoc, 
+            deleteDoc, 
+            onSnapshot, 
+            increment, 
+            serverTimestamp 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // =========================================================================
+        // 1. INIZIALIZZAZIONE FIREBASE
+        // =========================================================================
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'autoparts-oem-inventory';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : { apiKey: "demo", authDomain: "demo.firebaseapp.com", projectId: "demo" };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Riferimenti Collezioni Firestore (Strict Path Rule: /artifacts/{appId}/public/data/{collectionName})
+        const inventoryCol = collection(db, 'artifacts', appId, 'public', 'data', 'inventory');
+        const statusesCol = collection(db, 'artifacts', appId, 'public', 'data', 'statuses');
+        const usersCol = collection(db, 'artifacts', appId, 'public', 'data', 'users');
+
+        // =========================================================================
+        // 2. STATO GLOBALE DELL'APPLICAZIONE
+        // =========================================================================
+        let currentUser = null;
+        let currentUserProfile = null; // { uid, email, name, role: 'admin' | 'operator', approved: boolean }
+        let inventoryItems = [];
+        let filteredItems = [];
+        let customStatuses = ['Nuovo', 'Usato'];
+        let allUsersList = [];
+        let authMode = 'login'; // 'login' | 'register'
+
+        // Gestione Foto Base64 compressa temporanea
+        let currentFormPhotoBase64 = null;
+        let currentEditPhotoBase64 = null;
+
+        // Unsubscribers listener Firestore
+        let unsubInventory = null;
+        let unsubStatuses = null;
+        let unsubUsers = null;
+
+        // Helper permessi finanziari
+        function canViewFinance() {
+            if (!currentUserProfile || currentUserProfile.approved !== true) return false;
+            return ['admin', 'finance'].includes(currentUserProfile.role);
+        }
+
+        // =========================================================================
+        // 3. GESTIONE AUTENTICAZIONE E RUOLI (RBAC)
+        // =========================================================================
+        window.switchAuthTab = (mode) => {
+            authMode = mode;
+            const tabLogin = document.getElementById('tab-login');
+            const tabRegister = document.getElementById('tab-register');
+            const nameGroup = document.getElementById('register-name-group');
+            const submitBtn = document.getElementById('auth-submit-btn');
+
+            if (mode === 'login') {
+                tabLogin.className = "flex-1 py-2 text-sm font-semibold rounded-lg bg-white text-slate-900 shadow-xs transition";
+                tabRegister.className = "flex-1 py-2 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition";
+                nameGroup.classList.add('hidden');
+                submitBtn.textContent = "Accedi al Magazzino";
+            } else {
+                tabRegister.className = "flex-1 py-2 text-sm font-semibold rounded-lg bg-white text-slate-900 shadow-xs transition";
+                tabLogin.className = "flex-1 py-2 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition";
+                nameGroup.classList.remove('hidden');
+                submitBtn.textContent = "Crea Account Operatore";
+            }
+        };
+
+        window.handleEmailAuth = async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value.trim().toLowerCase();
+            const password = document.getElementById('auth-password').value;
+            const name = document.getElementById('auth-name').value.trim();
+
+            try {
+                if (authMode === 'register') {
+                    const cred = await createUserWithEmailAndPassword(auth, email, password);
+                    if (name) {
+                        await updateProfile(cred.user, { displayName: name });
+                    }
+                    showToast("Registrazione completata!", "success");
+                } else {
+                    await signInWithEmailAndPassword(auth, email, password);
+                    showToast("Accesso effettuato", "success");
+                }
+            } catch (err) {
+                console.error("Errore auth:", err);
+                let msg = "Errore di autenticazione. Verifica i dati inseriti.";
+                if (err.code === 'auth/email-already-in-use') msg = "Questa email è già registrata. Prova ad accedere.";
+                if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') msg = "Email o password non corretti.";
+                if (err.code === 'auth/weak-password') msg = "La password deve contenere almeno 6 caratteri.";
+                showToast(msg, "error");
+            }
+        };
+
+        window.handleGoogleSignIn = async () => {
+            try {
+                const provider = new GoogleAuthProvider();
+                await signInWithPopup(auth, provider);
+                showToast("Accesso con Google riuscito", "success");
+            } catch (err) {
+                console.error("Errore Google Sign-In:", err);
+                showToast("Impossibile completare l'accesso con Google in questa finestra.", "error");
+            }
+        };
+
+        window.handleQuickDemoAccess = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (err) {
+                console.error("Errore accesso rapido:", err);
+                showToast("Errore durante l'accesso rapido.", "error");
+            }
+        };
+
+        window.handleLogout = async () => {
+            cleanupListeners();
+            await signOut(auth);
+            currentUser = null;
+            currentUserProfile = null;
+            document.getElementById('app-screen').classList.add('hidden');
+            document.getElementById('auth-screen').classList.remove('hidden');
+            document.getElementById('pending-approval-screen').classList.add('hidden');
+            document.getElementById('auth-forms-container').classList.remove('hidden');
+            showToast("Disconnesso correttamente", "info");
+        };
+
+        // Listener stato autenticazione Firebase
+        onAuthStateChanged(auth, async (user) => {
+            const loadingEl = document.getElementById('auth-loading');
+            const formsEl = document.getElementById('auth-forms-container');
+            const pendingEl = document.getElementById('pending-approval-screen');
+
+            if (!user) {
+                loadingEl.classList.add('hidden');
+                formsEl.classList.remove('hidden');
+                pendingEl.classList.add('hidden');
+                return;
+            }
+
+            currentUser = user;
+            loadingEl.classList.remove('hidden');
+            formsEl.classList.add('hidden');
+
+            try {
+                await resolveUserProfileAndPermissions(user);
+            } catch (error) {
+                console.error("Errore risoluzione profilo:", error);
+                showToast("Errore nel caricamento del profilo utente.", "error");
+                loadingEl.classList.add('hidden');
+                formsEl.classList.remove('hidden');
+            }
+        });
+
+        async function resolveUserProfileAndPermissions(user) {
+            const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
+            const userSnap = await getDoc(userDocRef);
+
+            const email = (user.email || `operatore-${user.uid.slice(0, 6)}@magazzino.local`).toLowerCase();
+            const displayName = user.displayName || email.split('@')[0];
+
+            // Controlla se esistono già utenti nel sistema per nominare automaticamente il primo Amministratore
+            const allUsersSnap = await getDocs(usersCol);
+            const existingUsers = [];
+            allUsersSnap.forEach(d => existingUsers.push({ id: d.id, ...d.data() }));
+
+            if (userSnap.exists()) {
+                currentUserProfile = { uid: user.uid, ...userSnap.data() };
+            } else {
+                // Verifica se l'email era stata pre-autorizzata da un amministratore
+                const preAuthDoc = existingUsers.find(u => u.email && u.email.toLowerCase() === email && u.isPreAuth);
+                const isFirstUserInSystem = existingUsers.length === 0;
+
+                if (isFirstUserInSystem) {
+                    // Il primo utente in assoluto diventa Amministratore approvata automaticamente
+                    currentUserProfile = {
+                        uid: user.uid,
+                        email: email,
+                        name: displayName,
+                        role: 'admin',
+                        approved: true,
+                        createdAt: new Date().toISOString()
+                    };
+                    await setDoc(userDocRef, currentUserProfile);
+                    showToast("Benvenuto! Sei stato impostato come Amministratore principale.", "success");
+                } else if (preAuthDoc) {
+                    // Utente pre-autorizzato: eredita ruolo e approvazione
+                    currentUserProfile = {
+                        uid: user.uid,
+                        email: email,
+                        name: displayName,
+                        role: preAuthDoc.role || 'operator',
+                        approved: true,
+                        createdAt: new Date().toISOString()
+                    };
+                    await setDoc(userDocRef, currentUserProfile);
+                    // Rimuove il segnaposto pre-auth
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', preAuthDoc.id));
+                } else {
+                    // Nuovo utente non ancora autorizzato (se anonimo/demo lo approviamo come operatore base per test immediato)
+                    const isAnonymousDemo = user.isAnonymous;
+                    currentUserProfile = {
+                        uid: user.uid,
+                        email: email,
+                        name: isAnonymousDemo ? "Operatore Demo" : displayName,
+                        role: 'operator',
+                        approved: isAnonymousDemo ? true : false,
+                        createdAt: new Date().toISOString()
+                    };
+                    await setDoc(userDocRef, currentUserProfile);
+                }
+            }
+
+            // Ascolta in tempo reale eventuali cambi di ruolo o approvazione sul proprio profilo
+            onSnapshot(userDocRef, (snap) => {
+                if (snap.exists()) {
+                    currentUserProfile = { uid: user.uid, ...snap.data() };
+                    updateUIBasedOnPermissions();
+                }
+            }, (err) => console.error("Errore listener profilo:", err));
+
+            updateUIBasedOnPermissions();
+        }
+
+        function updateUIBasedOnPermissions() {
+            const authScreen = document.getElementById('auth-screen');
+            const appScreen = document.getElementById('app-screen');
+            const loadingEl = document.getElementById('auth-loading');
+            const pendingEl = document.getElementById('pending-approval-screen');
+
+            loadingEl.classList.add('hidden');
+
+            if (!currentUserProfile || !currentUserProfile.approved) {
+                authScreen.classList.remove('hidden');
+                appScreen.classList.add('hidden');
+                pendingEl.classList.remove('hidden');
+                document.getElementById('pending-user-email').textContent = currentUserProfile?.email || '';
+                lucide.createIcons();
+                return;
+            }
+
+            // Utente approvato: mostra applicazione
+            authScreen.classList.add('hidden');
+            pendingEl.classList.add('hidden');
+            appScreen.classList.remove('hidden');
+
+            // Aggiorna intestazione utente
+            document.getElementById('header-user-name').textContent = currentUserProfile.name || currentUserProfile.email;
+            const roleBadge = document.getElementById('header-user-role-badge');
+            const btnManageUsers = document.getElementById('btn-manage-users');
+
+            if (canViewFinance()) {
+                roleBadge.textContent = "Amministratore / Autorizzato Finanza";
+                roleBadge.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-[#EB7A1C] border border-orange-200";
+                btnManageUsers.classList.remove('hidden');
+                btnManageUsers.classList.add('flex');
+            } else {
+                roleBadge.textContent = "Operatore Magazzino";
+                roleBadge.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-neutral-100 text-[#3C3C3B] border border-neutral-200";
+                btnManageUsers.classList.add('hidden');
+                btnManageUsers.classList.remove('flex');
+            }
+
+            // Visibilità rigorosa campi Costo e Prezzo
+            const isAuthorized = canViewFinance();
+            toggleElementVisibility('form-finance-section', isAuthorized);
+            toggleElementVisibility('kpi-total-cost-card', isAuthorized, 'flex');
+            toggleElementVisibility('kpi-total-price-card', isAuthorized, 'flex');
+            toggleElementVisibility('th-finance', isAuthorized, 'table-cell');
+            toggleElementVisibility('edit-finance-fields', isAuthorized, 'grid');
+
+            // Avvia sincronizzazione dati se non già attiva
+            if (!unsubInventory) {
+                initRealtimeSync();
+            } else {
+                renderInventoryTable();
+                updateKPIs();
+            }
+            lucide.createIcons();
+        }
+
+        function toggleElementVisibility(id, show, displayClass = 'block') {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (show) {
+                el.classList.remove('hidden');
+                if (displayClass !== 'block') el.classList.add(displayClass);
+            } else {
+                el.classList.add('hidden');
+                if (displayClass !== 'block') el.classList.remove(displayClass);
+            }
+        }
+
+        // =========================================================================
+        // 4. SINCRONIZZAZIONE FIRESTORE IN TEMPO REALE
+        // =========================================================================
+        function initRealtimeSync() {
+            // 1. Listener Inventario
+            unsubInventory = onSnapshot(inventoryCol, (snapshot) => {
+                inventoryItems = [];
+                snapshot.forEach((docSnap) => {
+                    inventoryItems.push({ id: docSnap.id, ...docSnap.data() });
+                });
+                // Ordina in memoria per ultimo aggiornamento decrescente
+                inventoryItems.sort((a, b) => (b.updatedAtMs || 0) - (a.updatedAtMs || 0));
+                
+                updateLocationsDatalistAndFilters();
+                applyFilters();
+                updateKPIs();
+            }, (error) => {
+                console.error("Errore sincronizzazione inventario:", error);
+                showToast("Errore di connessione al database inventario.", "error");
+            });
+
+            // 2. Listener Stati Personalizzati
+            unsubStatuses = onSnapshot(statusesCol, (snapshot) => {
+                const baseStatuses = ['Nuovo', 'Usato'];
+                const extra = [];
+                snapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    if (data.name && !baseStatuses.includes(data.name)) {
+                        extra.push(data.name);
+                    }
+                });
+                extra.sort((a, b) => a.localeCompare(b));
+                customStatuses = [...baseStatuses, ...extra];
+                renderStatusSelects();
+            }, (error) => {
+                console.error("Errore sincronizzazione stati:", error);
+            });
+
+            // 3. Listener Utenti (per filtri e pannello admin)
+            unsubUsers = onSnapshot(usersCol, (snapshot) => {
+                allUsersList = [];
+                snapshot.forEach((docSnap) => {
+                    allUsersList.push({ id: docSnap.id, ...docSnap.data() });
+                });
+                updateUsersFilterDropdown();
+                renderUsersAdminList();
+            }, (error) => {
+                console.error("Errore sincronizzazione utenti:", error);
+            });
+        }
+
+        function cleanupListeners() {
+            if (unsubInventory) { unsubInventory(); unsubInventory = null; }
+            if (unsubStatuses) { unsubStatuses(); unsubStatuses = null; }
+            if (unsubUsers) { unsubUsers(); unsubUsers = null; }
+        }
+
+        // =========================================================================
+        // 5. GESTIONE STATI PERSONALIZZATI E UBICAZIONI
+        // =========================================================================
+        function renderStatusSelects() {
+            const inputStatus = document.getElementById('input-status');
+            const editStatus = document.getElementById('edit-status');
+            const filterStatus = document.getElementById('filter-status');
+
+            const currentInputVal = inputStatus.value || 'Nuovo';
+            const currentFilterVal = filterStatus.value || '';
+
+            inputStatus.innerHTML = customStatuses.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+            inputStatus.value = customStatuses.includes(currentInputVal) ? currentInputVal : 'Nuovo';
+
+            editStatus.innerHTML = customStatuses.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+
+            filterStatus.innerHTML = `<option value="">Tutti gli stati</option>` + 
+                customStatuses.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+            filterStatus.value = currentFilterVal;
+        }
+
+        window.openStatusModal = () => {
+            document.getElementById('new-status-input').value = '';
+            document.getElementById('status-modal').classList.remove('hidden');
+            document.getElementById('status-modal').classList.add('flex');
+            document.getElementById('new-status-input').focus();
+        };
+
+        window.closeStatusModal = () => {
+            document.getElementById('status-modal').classList.add('hidden');
+            document.getElementById('status-modal').classList.remove('flex');
+        };
+
+        window.saveNewStatus = async () => {
+            if (!currentUser) return;
+            const raw = document.getElementById('new-status-input').value.trim();
+            if (!raw) return;
+            const formatted = raw.charAt(0).toUpperCase() + raw.slice(1);
+
+            if (customStatuses.some(s => s.toLowerCase() === formatted.toLowerCase())) {
+                showToast("Questo stato esiste già!", "info");
+                closeStatusModal();
+                return;
+            }
+
+            try {
+                await addDoc(statusesCol, {
+                    name: formatted,
+                    createdBy: currentUserProfile?.name || currentUser.email,
+                    createdAt: serverTimestamp()
+                });
+                document.getElementById('input-status').value = formatted;
+                closeStatusModal();
+                showToast(`Stato "${formatted}" aggiunto!`, "success");
+            } catch (err) {
+                console.error("Errore salvataggio stato:", err);
+                showToast("Errore durante il salvataggio del nuovo stato.", "error");
+            }
+        };
+
+        function updateLocationsDatalistAndFilters() {
+            const locationsSet = new Set();
+            inventoryItems.forEach(item => {
+                if (item.location) locationsSet.add(item.location.trim());
+            });
+            const sortedLocations = Array.from(locationsSet).sort((a, b) => a.localeCompare(b));
+
+            const datalist = document.getElementById('locations-datalist');
+            datalist.innerHTML = sortedLocations.map(loc => `<option value="${escapeHtml(loc)}">`).join('');
+
+            const filterLoc = document.getElementById('filter-location');
+            const prevLoc = filterLoc.value;
+            filterLoc.innerHTML = `<option value="">Tutte le ubicazioni</option>` + 
+                sortedLocations.map(loc => `<option value="${escapeHtml(loc)}">${escapeHtml(loc)}</option>`).join('');
+            filterLoc.value = prevLoc;
+        }
+
+        function updateUsersFilterDropdown() {
+            const usersSet = new Set();
+            inventoryItems.forEach(item => {
+                if (item.updatedByName) usersSet.add(item.updatedByName);
+            });
+            const sortedUsers = Array.from(usersSet).sort((a, b) => a.localeCompare(b));
+
+            const filterUser = document.getElementById('filter-user');
+            const prevUser = filterUser.value;
+            filterUser.innerHTML = `<option value="">Tutti gli operatori</option>` + 
+                sortedUsers.map(u => `<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
+            filterUser.value = prevUser;
+        }
+
+        // =========================================================================
+        // 6. INSERIMENTO RICAMBIO, RICERCA WEB & GESTIONE DUPLICATI
+        // =========================================================================
+        window.handleOemInput = (el) => {
+            // Normalizza maiuscolo senza spazi interni superflui
+            const cleaned = el.value.toUpperCase().replace(/\s+/g, '');
+            el.value = cleaned;
+
+            const clearBtn = document.getElementById('btn-clear-oem');
+            const liveHint = document.getElementById('oem-live-hint');
+
+            if (cleaned.length > 0) {
+                clearBtn.classList.remove('hidden');
+                const matches = inventoryItems.filter(i => i.oem === cleaned);
+                if (matches.length > 0) {
+                    const totalQty = matches.reduce((sum, m) => sum + (Number(m.quantity) || 0), 0);
+                    liveHint.querySelector('span').textContent = `Già presente (${matches.length} rig${matches.length > 1 ? 'he' : 'a'}, tot. ${totalQty} pz)`;
+                    liveHint.classList.remove('hidden');
+                } else {
+                    liveHint.classList.add('hidden');
+                }
+            } else {
+                clearBtn.classList.add('hidden');
+                liveHint.classList.add('hidden');
+            }
+        };
+
+        window.clearOemInput = () => {
+            const el = document.getElementById('input-oem');
+            el.value = '';
+            handleOemInput(el);
+            el.focus();
+        };
+
+        window.searchOemOnWeb = () => {
+            const oem = document.getElementById('input-oem').value.trim();
+            if (!oem) {
+                showToast("Inserisci prima un Codice OEM per cercarlo sul web.", "info");
+                document.getElementById('input-oem').focus();
+                return;
+            }
+            const query = encodeURIComponent(`ricambio auto OEM ${oem}`);
+            window.open(`https://www.google.com/search?q=${query}`, '_blank', 'noopener,noreferrer');
+        };
+
+        window.adjustFormQty = (delta) => {
+            const qtyInput = document.getElementById('input-qty');
+            let val = parseInt(qtyInput.value, 10) || 1;
+            val = Math.max(1, val + delta);
+            qtyInput.value = val;
+        };
+
+        // Variabile temporanea per i dati del form in attesa di decisione su duplicato
+        let pendingNewItemData = null;
+
+        window.handleFormSubmit = async (e) => {
+            e.preventDefault();
+            if (!currentUser || !currentUserProfile?.approved) return;
+
+            const oem = document.getElementById('input-oem').value.trim().toUpperCase().replace(/\s+/g, '');
+            const description = document.getElementById('input-desc').value.trim();
+            const quantity = Math.max(1, parseInt(document.getElementById('input-qty').value, 10) || 1);
+            const location = document.getElementById('input-location').value.trim();
+            const status = document.getElementById('input-status').value;
+            const notes = document.getElementById('input-notes').value.trim();
+
+            let cost = null;
+            let price = null;
+            if (canViewFinance()) {
+                const rawCost = document.getElementById('input-cost').value;
+                const rawPrice = document.getElementById('input-price').value;
+                cost = rawCost !== '' ? parseFloat(rawCost) : null;
+                price = rawPrice !== '' ? parseFloat(rawPrice) : null;
+            }
+
+            const newItemPayload = {
+                oem,
+                description,
+                quantity,
+                location,
+                status,
+                notes,
+                photoBase64: currentFormPhotoBase64 || null,
+                cost,
+                price,
+                createdByUid: currentUser.uid,
+                createdByName: currentUserProfile.name || currentUser.email,
+                updatedByUid: currentUser.uid,
+                updatedByName: currentUserProfile.name || currentUser.email,
+                updatedAtMs: Date.now()
+            };
+
+            // Controlla se esiste già lo stesso codice OEM in inventario
+            const existingMatches = inventoryItems.filter(item => item.oem === oem);
+
+            if (existingMatches.length > 0) {
+                pendingNewItemData = newItemPayload;
+                openDuplicateModal(oem, quantity, existingMatches);
+                return;
+            }
+
+            await executeCreateNewItem(newItemPayload);
+        };
+
+        function openDuplicateModal(oem, addQty, matches) {
+            document.getElementById('dup-oem-code').textContent = oem;
+            document.getElementById('dup-add-qty').textContent = addQty;
+
+            const listEl = document.getElementById('dup-existing-list');
+            listEl.innerHTML = matches.map(m => `
+                <div class="p-3 rounded-xl border border-neutral-200 hover:border-[#EB7A1C] bg-neutral-50 hover:bg-orange-50/40 flex items-center justify-between gap-3 transition">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-bold text-[#3C3C3B] text-sm flex items-center gap-1">
+                                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-[#EB7A1C]"></i>
+                                ${escapeHtml(m.location)}
+                            </span>
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-neutral-200 text-neutral-700 font-semibold">${escapeHtml(m.status)}</span>
+                        </div>
+                        <p class="text-xs text-neutral-600 truncate mt-0.5">${escapeHtml(m.description)}</p>
+                        <p class="text-xs font-bold text-neutral-800 mt-1">Giacenza attuale: <span class="text-[#EB7A1C]">${m.quantity} pz</span></p>
+                    </div>
+                    <button type="button" onclick="sumToExistingItem('${m.id}')" class="px-3.5 py-2.5 rounded-xl bg-[#EB7A1C] hover:bg-[#D46810] text-white text-xs font-bold shrink-0 shadow-xs transition">
+                        + Somma (+${addQty})
+                    </button>
+                </div>
+            `).join('');
+
+            document.getElementById('duplicate-modal').classList.remove('hidden');
+            document.getElementById('duplicate-modal').classList.add('flex');
+            lucide.createIcons();
+        }
+
+        window.closeDuplicateModal = () => {
+            document.getElementById('duplicate-modal').classList.add('hidden');
+            document.getElementById('duplicate-modal').classList.remove('flex');
+            pendingNewItemData = null;
+        };
+
+        // Somma atomica (increment) sulla riga esistente per proteggere da sovrascritture simultanee
+        window.sumToExistingItem = async (existingDocId) => {
+            if (!pendingNewItemData || !currentUser) return;
+            const qtyToAdd = pendingNewItemData.quantity;
+            const newPhoto = pendingNewItemData.photoBase64;
+
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'inventory', existingDocId);
+                const updateFields = {
+                    quantity: increment(qtyToAdd),
+                    updatedByUid: currentUser.uid,
+                    updatedByName: currentUserProfile.name || currentUser.email,
+                    updatedAtMs: Date.now()
+                };
+                // Se l'utente aveva scattato una nuova foto e la riga ne era sprovvista, la allega
+                if (newPhoto) {
+                    updateFields.photoBase64 = newPhoto;
+                }
+                await updateDoc(docRef, updateFields);
+                closeDuplicateModal();
+                resetAddForm();
+                showToast(`Quantità sommata (+${qtyToAdd} pz) in modo sicuro!`, "success");
+            } catch (err) {
+                console.error("Errore incremento atomico:", err);
+                showToast("Errore durante l'aggiornamento della quantità.", "error");
+            }
+        };
+
+        window.confirmInsertAsNewRow = async () => {
+            if (!pendingNewItemData) return;
+            const payload = { ...pendingNewItemData };
+            closeDuplicateModal();
+            await executeCreateNewItem(payload);
+        };
+
+        async function executeCreateNewItem(payload) {
+            const btn = document.getElementById('btn-submit-part');
+            btn.disabled = true;
+            btn.classList.add('opacity-70');
+
+            try {
+                await addDoc(inventoryCol, payload);
+                resetAddForm();
+                showToast(`Ricambio ${payload.oem} registrato!`, "success");
+            } catch (err) {
+                console.error("Errore salvataggio ricambio:", err);
+                showToast("Errore durante il salvataggio nel cloud.", "error");
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-70');
+            }
+        }
+
+        window.resetAddForm = () => {
+            document.getElementById('add-part-form').reset();
+            document.getElementById('input-qty').value = 1;
+            document.getElementById('input-status').value = 'Nuovo';
+            document.getElementById('btn-clear-oem').classList.add('hidden');
+            document.getElementById('oem-live-hint').classList.add('hidden');
+            clearSelectedPhoto();
+        };
+
+        // =========================================================================
+        // 7. GESTIONE FOTO & COMPRESSIONE LATO CLIENT (OTTIMIZZATA TABLET)
+        // =========================================================================
+        function compressImageFile(file, maxWidth = 800, quality = 0.7) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > maxWidth) {
+                            height = Math.round((height * maxWidth) / width);
+                            width = maxWidth;
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                        resolve(compressedDataUrl);
+                    };
+                    img.onerror = reject;
+                    img.src = event.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        window.handlePhotoSelect = async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            try {
+                document.getElementById('photo-btn-label').textContent = "Elaborazione...";
+                const base64 = await compressImageFile(file, 800, 0.7);
+                currentFormPhotoBase64 = base64;
+                document.getElementById('photo-preview-thumb').src = base64;
+                document.getElementById('photo-preview-wrapper').classList.remove('hidden');
+                document.getElementById('photo-btn-label').textContent = "Foto pronta";
+            } catch (err) {
+                console.error("Errore compressione foto:", err);
+                showToast("Impossibile elaborare l'immagine selezionata.", "error");
+                document.getElementById('photo-btn-label').textContent = "Scatta / Allega";
+            }
+        };
+
+        window.clearSelectedPhoto = () => {
+            currentFormPhotoBase64 = null;
+            document.getElementById('input-photo').value = '';
+            document.getElementById('photo-preview-wrapper').classList.add('hidden');
+            document.getElementById('photo-preview-thumb').src = '';
+            document.getElementById('photo-btn-label').textContent = "Scatta / Allega";
+        };
+
+        window.openPhotoModal = (base64Src, caption) => {
+            if (!base64Src) return;
+            document.getElementById('photo-modal-img').src = base64Src;
+            document.getElementById('photo-modal-caption').textContent = caption || '';
+            document.getElementById('photo-modal').classList.remove('hidden');
+            document.getElementById('photo-modal').classList.add('flex');
+        };
+
+        window.closePhotoModal = () => {
+            document.getElementById('photo-modal').classList.add('hidden');
+            document.getElementById('photo-modal').classList.remove('flex');
+        };
+
+        // =========================================================================
+        // 8. TABELLA INVENTARIO, AZIONI RAPIDE (+1/-1), MODIFICA ED ELIMINAZIONE
+        // =========================================================================
+        window.applyFilters = () => {
+            const search = document.getElementById('filter-search').value.trim().toLowerCase();
+            const loc = document.getElementById('filter-location').value;
+            const status = document.getElementById('filter-status').value;
+            const userFilter = document.getElementById('filter-user').value;
+
+            filteredItems = inventoryItems.filter(item => {
+                const matchSearch = !search || 
+                    (item.oem && item.oem.toLowerCase().includes(search)) ||
+                    (item.description && item.description.toLowerCase().includes(search)) ||
+                    (item.notes && item.notes.toLowerCase().includes(search));
+                const matchLoc = !loc || item.location === loc;
+                const matchStatus = !status || item.status === status;
+                const matchUser = !userFilter || item.updatedByName === userFilter;
+                return matchSearch && matchLoc && matchStatus && matchUser;
+            });
+
+            document.getElementById('filtered-count-badge').textContent = filteredItems.length;
+            renderInventoryTable();
+        };
+
+        window.resetFilters = () => {
+            document.getElementById('filter-search').value = '';
+            document.getElementById('filter-location').value = '';
+            document.getElementById('filter-status').value = '';
+            document.getElementById('filter-user').value = '';
+            applyFilters();
+        };
+
+        function renderInventoryTable() {
+            const tbody = document.getElementById('inventory-tbody');
+            const emptyState = document.getElementById('empty-state');
+            const isAuthorized = canViewFinance();
+
+            if (filteredItems.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+
+            tbody.innerHTML = filteredItems.map(item => {
+                const statusBadgeClass = getStatusBadgeStyle(item.status);
+                const photoCell = item.photoBase64 
+                    ? `<button type="button" onclick="openPhotoModal('${item.photoBase64}', '${escapeHtml(item.oem)} - ${escapeHtml(item.description)}')" class="w-12 h-12 rounded-xl overflow-hidden border border-neutral-300 hover:ring-2 hover:ring-[#EB7A1C] transition shrink-0 block">
+                         <img src="${item.photoBase64}" alt="Foto" class="w-full h-full object-cover">
+                       </button>`
+                    : `<div class="w-12 h-12 rounded-xl bg-neutral-100 border border-neutral-200 flex items-center justify-center text-neutral-400">
+                         <i data-lucide="image-off" class="w-4 h-4"></i>
+                       </div>`;
+
+                const financeCell = isAuthorized ? `
+                    <td class="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div class="text-xs text-neutral-500">Costo: <span class="font-semibold text-[#3C3C3B]">${item.cost != null ? formatCurrency(item.cost) : '—'}</span></div>
+                        <div class="text-xs text-emerald-700">Prezzo: <span class="font-bold">${item.price != null ? formatCurrency(item.price) : '—'}</span></div>
+                    </td>
+                ` : '';
+
+                const timeStr = item.updatedAtMs ? new Date(item.updatedAtMs).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+
+                return `
+                    <tr class="hover:bg-orange-50/30 transition">
+                        <td class="py-3 px-4 w-16">${photoCell}</td>
+                        <td class="py-3 px-4 font-mono font-extrabold text-[#3C3C3B] text-sm whitespace-nowrap">
+                            ${escapeHtml(item.oem)}
+                        </td>
+                        <td class="py-3 px-4 max-w-xs">
+                            <div class="font-semibold text-neutral-800 line-clamp-2">${escapeHtml(item.description)}</div>
+                            ${item.notes ? `<div class="text-xs text-neutral-500 mt-0.5 truncate"><i data-lucide="sticky-note" class="w-3 h-3 inline mr-1"></i>${escapeHtml(item.notes)}</div>` : ''}
+                        </td>
+                        <td class="py-3 px-4 whitespace-nowrap">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-neutral-100 text-[#3C3C3B] font-semibold text-xs border border-neutral-200">
+                                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-[#EB7A1C]"></i>
+                                ${escapeHtml(item.location)}
+                            </span>
+                        </td>
+                        <td class="py-3 px-4 whitespace-nowrap">
+                            <span class="inline-block px-2.5 py-1 rounded-full text-xs font-bold ${statusBadgeClass}">
+                                ${escapeHtml(item.status)}
+                            </span>
+                        </td>
+                        <td class="py-3 px-4">
+                            <div class="flex items-center justify-center gap-1.5">
+                                <button type="button" onclick="atomicStepQuantity('${item.id}', -1, ${item.quantity})" class="w-9 h-9 rounded-lg bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 border border-neutral-300 font-bold text-[#3C3C3B] flex items-center justify-center transition" title="Rimuovi 1">
+                                    -
+                                </button>
+                                <span class="w-10 text-center font-extrabold text-base text-[#3C3C3B]">${item.quantity}</span>
+                                <button type="button" onclick="atomicStepQuantity('${item.id}', 1, ${item.quantity})" class="w-9 h-9 rounded-lg bg-orange-50 hover:bg-orange-100 active:bg-orange-200 border border-orange-200 font-bold text-[#EB7A1C] flex items-center justify-center transition" title="Aggiungi 1">
+                                    +
+                                </button>
+                            </div>
+                        </td>
+                        ${financeCell}
+                        <td class="py-3 px-4 hidden lg:table-cell whitespace-nowrap">
+                            <div class="text-xs font-semibold text-neutral-700">${escapeHtml(item.updatedByName || '—')}</div>
+                            <div class="text-[11px] text-neutral-400">${timeStr}</div>
+                        </td>
+                        <td class="py-3 px-4 text-right whitespace-nowrap">
+                            <div class="inline-flex items-center gap-1">
+                                <button type="button" onclick="openEditModal('${item.id}')" class="p-2.5 rounded-xl text-neutral-600 hover:text-[#EB7A1C] hover:bg-orange-50 transition" title="Modifica">
+                                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                                </button>
+                                <button type="button" onclick="openDeleteModal('${item.id}')" class="p-2.5 rounded-xl text-neutral-600 hover:text-red-600 hover:bg-red-50 transition" title="Elimina">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        // Incremento / Decremento atomico direttamente dalla tabella
+        window.atomicStepQuantity = async (docId, delta, currentQty) => {
+            if (!currentUser || !currentUserProfile?.approved) return;
+            const safeCurrent = Number(currentQty) || 0;
+            if (delta < 0 && safeCurrent + delta < 0) {
+                showToast("La quantità non può scendere sotto 0.", "warning");
+                return;
+            }
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'inventory', docId);
+                await updateDoc(docRef, {
+                    quantity: increment(delta),
+                    updatedByUid: currentUser.uid,
+                    updatedByName: currentUserProfile.name || currentUser.email,
+                    updatedAtMs: Date.now()
+                });
+            } catch (err) {
+                console.error("Errore variazione quantità:", err);
+                showToast("Impossibile aggiornare la quantità.", "error");
+            }
+        };
+
+        // Modifica Ricambio
+        let editingItemOriginal = null;
+
+        window.openEditModal = (docId) => {
+            const item = inventoryItems.find(i => i.id === docId);
+            if (!item) return;
+            editingItemOriginal = item;
+
+            document.getElementById('edit-id').value = item.id;
+            document.getElementById('edit-oem').value = item.oem || '';
+            document.getElementById('edit-qty').value = item.quantity ?? 1;
+            document.getElementById('edit-desc').value = item.description || '';
+            document.getElementById('edit-location').value = item.location || '';
+            document.getElementById('edit-status').value = item.status || 'Nuovo';
+            document.getElementById('edit-notes').value = item.notes || '';
+
+            if (canViewFinance()) {
+                document.getElementById('edit-cost').value = item.cost != null ? item.cost : '';
+                document.getElementById('edit-price').value = item.price != null ? item.price : '';
+            } else {
+                document.getElementById('edit-cost').value = '';
+                document.getElementById('edit-price').value = '';
+            }
+
+            currentEditPhotoBase64 = item.photoBase64 || null;
+            const previewImg = document.getElementById('edit-photo-preview');
+            const removeBtn = document.getElementById('edit-remove-photo-btn');
+            if (currentEditPhotoBase64) {
+                previewImg.src = currentEditPhotoBase64;
+                previewImg.classList.remove('hidden');
+                removeBtn.classList.remove('hidden');
+            } else {
+                previewImg.src = '';
+                previewImg.classList.add('hidden');
+                removeBtn.classList.add('hidden');
+            }
+            document.getElementById('edit-photo-input').value = '';
+
+            document.getElementById('edit-modal').classList.remove('hidden');
+            document.getElementById('edit-modal').classList.add('flex');
+            lucide.createIcons();
+        };
+
+        window.closeEditModal = () => {
+            document.getElementById('edit-modal').classList.add('hidden');
+            document.getElementById('edit-modal').classList.remove('flex');
+            editingItemOriginal = null;
+            currentEditPhotoBase64 = null;
+        };
+
+        window.handleEditPhotoSelect = async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            try {
+                const compressed = await compressImageFile(file, 800, 0.7);
+                currentEditPhotoBase64 = compressed;
+                const previewImg = document.getElementById('edit-photo-preview');
+                previewImg.src = compressed;
+                previewImg.classList.remove('hidden');
+                document.getElementById('edit-remove-photo-btn').classList.remove('hidden');
+            } catch (err) {
+                console.error("Errore foto in modifica:", err);
+                showToast("Impossibile elaborare la nuova foto.", "error");
+            }
+        };
+
+        window.removeEditPhoto = () => {
+            currentEditPhotoBase64 = null;
+            document.getElementById('edit-photo-input').value = '';
+            const previewImg = document.getElementById('edit-photo-preview');
+            previewImg.src = '';
+            previewImg.classList.add('hidden');
+            document.getElementById('edit-remove-photo-btn').classList.add('hidden');
+        };
+
+        window.handleEditSubmit = async (e) => {
+            e.preventDefault();
+            if (!currentUser || !currentUserProfile?.approved) return;
+
+            const docId = document.getElementById('edit-id').value;
+            const oem = document.getElementById('edit-oem').value.trim().toUpperCase().replace(/\s+/g, '');
+            const quantity = Math.max(0, parseInt(document.getElementById('edit-qty').value, 10) || 0);
+            const description = document.getElementById('edit-desc').value.trim();
+            const location = document.getElementById('edit-location').value.trim();
+            const status = document.getElementById('edit-status').value;
+            const notes = document.getElementById('edit-notes').value.trim();
+
+            const payload = {
+                oem,
+                quantity,
+                description,
+                location,
+                status,
+                notes,
+                photoBase64: currentEditPhotoBase64 || null,
+                updatedByUid: currentUser.uid,
+                updatedByName: currentUserProfile.name || currentUser.email,
+                updatedAtMs: Date.now()
+            };
+
+            if (canViewFinance()) {
+                const rawCost = document.getElementById('edit-cost').value;
+                const rawPrice = document.getElementById('edit-price').value;
+                payload.cost = rawCost !== '' ? parseFloat(rawCost) : null;
+                payload.price = rawPrice !== '' ? parseFloat(rawPrice) : null;
+            }
+
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'inventory', docId);
+                await updateDoc(docRef, payload);
+                closeEditModal();
+                showToast(`Ricambio ${oem} aggiornato!`, "success");
+            } catch (err) {
+                console.error("Errore salvataggio modifiche:", err);
+                showToast("Errore durante il salvataggio delle modifiche.", "error");
+            }
+        };
+
+        // Eliminazione Ricambio
+        let pendingDeleteDocId = null;
+
+        window.openDeleteModal = (docId) => {
+            pendingDeleteDocId = docId;
+            document.getElementById('delete-modal').classList.remove('hidden');
+            document.getElementById('delete-modal').classList.add('flex');
+        };
+
+        window.closeDeleteModal = () => {
+            pendingDeleteDocId = null;
+            document.getElementById('delete-modal').classList.add('hidden');
+            document.getElementById('delete-modal').classList.remove('flex');
+        };
+
+        document.getElementById('confirm-delete-btn')?.addEventListener('click', async () => {
+            if (!pendingDeleteDocId || !currentUser) return;
+            const targetId = pendingDeleteDocId;
+            try {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', targetId));
+                closeDeleteModal();
+                showToast("Ricambio eliminato dall'inventario.", "success");
+            } catch (err) {
+                console.error("Errore eliminazione ricambio:", err);
+                showToast("Errore durante l'eliminazione.", "error");
+            }
+        });
+
+        // =========================================================================
+        // 9. GESTIONE UTENTI E RUOLI (PANNELLO AMMINISTRATORE)
+        // =========================================================================
+        window.openUsersModal = () => {
+            if (!canViewFinance()) {
+                showToast("Accesso riservato agli Amministratori.", "warning");
+                return;
+            }
+            renderUsersAdminList();
+            document.getElementById('users-modal').classList.remove('hidden');
+            document.getElementById('users-modal').classList.add('flex');
+            lucide.createIcons();
+        };
+
+        window.closeUsersModal = () => {
+            document.getElementById('users-modal').classList.add('hidden');
+            document.getElementById('users-modal').classList.remove('flex');
+        };
+
+        window.handlePreAuthorizeEmail = async (e) => {
+            e.preventDefault();
+            if (!canViewFinance()) return;
+
+            const email = document.getElementById('preauth-email').value.trim().toLowerCase();
+            const role = document.getElementById('preauth-role').value;
+            if (!email) return;
+
+            const existing = allUsersList.find(u => u.email && u.email.toLowerCase() === email);
+            try {
+                if (existing) {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', existing.id), {
+                        role,
+                        approved: true
+                    });
+                    showToast(`Permessi aggiornati per ${email}`, "success");
+                } else {
+                    const docId = 'preauth_' + btoa(unescape(encodeURIComponent(email))).replace(/[^a-zA-Z0-9]/g, '').slice(0, 28);
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', docId), {
+                        email,
+                        name: email.split('@')[0],
+                        role,
+                        approved: true,
+                        isPreAuth: true,
+                        createdAt: new Date().toISOString()
+                    });
+                    showToast(`Email ${email} pre-autorizzata!`, "success");
+                }
+                document.getElementById('preauth-email').value = '';
+            } catch (err) {
+                console.error("Errore pre-autorizzazione:", err);
+                showToast("Errore durante l'autorizzazione dell'email.", "error");
+            }
+        };
+
+        window.toggleUserApproval = async (userDocId, currentApproved) => {
+            if (!canViewFinance()) return;
+            try {
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userDocId), {
+                    approved: !currentApproved
+                });
+                showToast(!currentApproved ? "Utente approvato!" : "Accesso utente sospeso.", "info");
+            } catch (err) {
+                console.error("Errore cambio approvazione:", err);
+                showToast("Errore aggiornamento stato utente.", "error");
+            }
+        };
+
+        window.changeUserRole = async (userDocId, newRole) => {
+            if (!canViewFinance()) return;
+            try {
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userDocId), {
+                    role: newRole
+                });
+                showToast("Ruolo utente aggiornato.", "success");
+            } catch (err) {
+                console.error("Errore cambio ruolo:", err);
+                showToast("Errore aggiornamento ruolo.", "error");
+            }
+        };
+
+        function renderUsersAdminList() {
+            const container = document.getElementById('users-list-container');
+            const badgeCount = document.getElementById('pending-users-count');
+            if (!container) return;
+
+            const pendingCount = allUsersList.filter(u => !u.approved).length;
+            if (badgeCount) {
+                if (pendingCount > 0) {
+                    badgeCount.textContent = pendingCount;
+                    badgeCount.classList.remove('hidden');
+                } else {
+                    badgeCount.classList.add('hidden');
+                }
+            }
+
+            if (allUsersList.length === 0) {
+                container.innerHTML = `<p class="text-sm text-neutral-500 text-center py-4">Nessun utente registrato.</p>`;
+                return;
+            }
+
+            container.innerHTML = allUsersList.map(u => {
+                const isSelf = currentUser && u.id === currentUser.uid;
+                const statusPill = u.approved
+                    ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">Attivo</span>`
+                    : `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">In attesa</span>`;
+
+                return `
+                    <div class="p-3.5 rounded-xl border ${u.approved ? 'border-neutral-200 bg-white' : 'border-amber-300 bg-amber-50/40'} flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="font-bold text-sm text-[#3C3C3B]">${escapeHtml(u.name || u.email)}</span>
+                                ${statusPill}
+                                ${u.isPreAuth ? `<span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-neutral-200 text-neutral-700">Pre-autorizzato</span>` : ''}
+                            </div>
+                            <p class="text-xs text-neutral-500 truncate">${escapeHtml(u.email || '')}</p>
+                        </div>
+
+                        <div class="flex items-center gap-2 shrink-0">
+                            <select onchange="changeUserRole('${u.id}', this.value)" ${isSelf ? 'disabled' : ''} class="px-2.5 py-1.5 rounded-lg border border-neutral-300 bg-white text-xs font-semibold outline-none disabled:opacity-60">
+                                <option value="operator" ${u.role === 'operator' ? 'selected' : ''}>Operatore</option>
+                                <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin / Finanza</option>
+                            </select>
+
+                            <button type="button" onclick="toggleUserApproval('${u.id}', ${Boolean(u.approved)})" ${isSelf ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg text-xs font-bold transition disabled:opacity-50 ${u.approved ? 'bg-neutral-100 hover:bg-red-50 text-neutral-700 hover:text-red-600 border border-neutral-300' : 'bg-[#EB7A1C] hover:bg-[#D46810] text-white'}">
+                                ${u.approved ? 'Sospendi' : 'Approva'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // =========================================================================
+        // 10. ESPORTAZIONE CSV (EXCEL COMPATIBILE + RISPETTO PERMESSI COSTO/PREZZO)
+        // =========================================================================
+        window.exportToCSV = () => {
+            if (filteredItems.length === 0) {
+                showToast("Nessun articolo da esportare.", "info");
+                return;
+            }
+
+            const isAuthorized = canViewFinance();
+            const headers = [
+                "Codice OEM",
+                "Descrizione",
+                "Quantita",
+                "Ubicazione",
+                "Stato",
+                ...(isAuthorized ? ["Costo Unitario (EUR)", "Prezzo Unitario (EUR)", "Valore Costo Totale (EUR)", "Valore Vendita Totale (EUR)"] : []),
+                "Note",
+                "Operatore",
+                "Ultimo Aggiornamento"
+            ];
+
+            const rows = filteredItems.map(item => {
+                const qty = Number(item.quantity) || 0;
+                const costStr = item.cost != null ? Number(item.cost).toFixed(2).replace('.', ',') : '';
+                const priceStr = item.price != null ? Number(item.price).toFixed(2).replace('.', ',') : '';
+                const totCostStr = item.cost != null ? (Number(item.cost) * qty).toFixed(2).replace('.', ',') : '';
+                const totPriceStr = item.price != null ? (Number(item.price) * qty).toFixed(2).replace('.', ',') : '';
+                const dateStr = item.updatedAtMs ? new Date(item.updatedAtMs).toLocaleString('it-IT') : '';
+
+                const cols = [
+                    item.oem || '',
+                    item.description || '',
+                    qty,
+                    item.location || '',
+                    item.status || '',
+                    ...(isAuthorized ? [costStr, priceStr, totCostStr, totPriceStr] : []),
+                    item.notes || '',
+                    item.updatedByName || '',
+                    dateStr
+                ];
+
+                return cols.map(val => `"${String(val).replace(/"/g, '""')}"`).join(';');
+            });
+
+            // BOM UTF-8 (\uFEFF) per apertura perfetta dei caratteri accentati e delle colonne su Excel italiano
+            const csvContent = "\uFEFF" + [headers.join(';'), ...rows].join('\r\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+
+            const link = document.createElement('a');
+            const dateTag = new Date().toISOString().slice(0, 10);
+            link.href = url;
+            link.download = `TiRecupero_Inventario_OEM_${dateTag}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            showToast(`Esportati ${filteredItems.length} articoli in CSV!`, "success");
+        };
+
+        // =========================================================================
+        // 11. UTILITY UI (TOAST, FORMATTAZIONE, ESCAPE)
+        // =========================================================================
+        // 11. UTILITY UI (TOAST, FORMATTAZIONE, ESCAPE, KPI)
+        // =========================================================================
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const styles = {
+                success: { bg: 'bg-[#3C3C3B]', border: 'border-emerald-500', icon: 'check-circle-2', iconColor: 'text-emerald-400' },
+                error: { bg: 'bg-red-950', border: 'border-red-500', icon: 'alert-circle', iconColor: 'text-red-400' },
+                warning: { bg: 'bg-[#3C3C3B]', border: 'border-[#EB7A1C]', icon: 'alert-triangle', iconColor: 'text-[#EB7A1C]' },
+                info: { bg: 'bg-[#3C3C3B]', border: 'border-sky-400', icon: 'info', iconColor: 'text-sky-400' }
+            };
+
+            const cfg = styles[type] || styles.info;
+            const toast = document.createElement('div');
+            toast.className = `pointer-events-auto toast-enter ${cfg.bg} text-white border-l-4 ${cfg.border} px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium`;
+            toast.innerHTML = `
+                <i data-lucide="${cfg.icon}" class="w-5 h-5 ${cfg.iconColor} shrink-0"></i>
+                <span class="flex-1">${escapeHtml(message)}</span>
+            `;
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(8px)';
+                toast.style.transition = 'all 0.2s ease';
+                setTimeout(() => toast.remove(), 220);
+            }, 3400);
+        }
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function formatCurrency(value) {
+            const num = Number(value);
+            if (!Number.isFinite(num)) return '—';
+            return num.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
+        }
+
+        function getStatusBadgeStyle(status) {
+            const normalized = String(status || '').toLowerCase();
+            if (normalized === 'nuovo') {
+                return 'bg-emerald-100 text-emerald-800 border border-emerald-200';
+            }
+            if (normalized === 'usato') {
+                return 'bg-amber-100 text-amber-800 border border-amber-200';
+            }
+            if (normalized.includes('rigenerat')) {
+                return 'bg-orange-100 text-[#EB7A1C] border border-orange-200';
+            }
+            if (normalized.includes('dannegg') || normalized.includes('reso')) {
+                return 'bg-red-100 text-red-800 border border-red-200';
+            }
+            return 'bg-neutral-100 text-[#3C3C3B] border border-neutral-200';
+        }
+
+        function updateKPIs() {
+            const totalRows = inventoryItems.length;
+            const totalPieces = inventoryItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
+
+            document.getElementById('stat-total-rows').textContent = totalRows.toLocaleString('it-IT');
+            document.getElementById('stat-total-pieces').textContent = totalPieces.toLocaleString('it-IT');
+
+            if (canViewFinance()) {
+                let totalCost = 0;
+                let totalPrice = 0;
+                inventoryItems.forEach(item => {
+                    const qty = Number(item.quantity) || 0;
+                    if (item.cost != null && Number.isFinite(Number(item.cost))) {
+                        totalCost += Number(item.cost) * qty;
+                    }
+                    if (item.price != null && Number.isFinite(Number(item.price))) {
+                        totalPrice += Number(item.price) * qty;
+                    }
+                });
+                document.getElementById('stat-total-cost').textContent = formatCurrency(totalCost);
+                document.getElementById('stat-total-price').textContent = formatCurrency(totalPrice);
+            }
+        }
+
+        // Inizializzazione icone iniziali
+        lucide.createIcons();
+    </script>
+</body>
+</html>
