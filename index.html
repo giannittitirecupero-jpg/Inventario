@@ -277,6 +277,79 @@
         </div>
     </div>
 
+    <!-- Modal Storico Movimenti & Audit Log -->
+    <div id="audit-modal" class="fixed inset-0 bg-neutral-950/60 z-50 hidden items-center justify-center p-4 backdrop-blur-xs overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-5xl w-full p-6 border border-neutral-200 my-6 flex flex-col max-h-[90vh]">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-neutral-200 shrink-0">
+                <div>
+                    <h3 class="text-xl font-bold text-[#3C3C3B] flex items-center gap-2">
+                        <i data-lucide="history" class="w-6 h-6 text-[#EB7A1C]"></i>
+                        Storico Movimenti & Modifiche
+                    </h3>
+                    <p class="text-xs text-neutral-500 mt-0.5">Registro cronologico completo di inserimenti, variazioni giacenza, modifiche anagrafiche ed eliminazioni.</p>
+                </div>
+                <div class="flex items-center gap-2 self-end sm:self-auto">
+                    <button type="button" onclick="exportAuditLogCSV()" class="px-3.5 py-2 rounded-xl bg-[#EB7A1C] hover:bg-[#D46810] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        <span>Esporta Storico CSV</span>
+                    </button>
+                    <button type="button" onclick="closeAuditModal()" class="text-neutral-400 hover:text-neutral-600 p-2 rounded-lg">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filtri Storico -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-4 shrink-0 bg-neutral-50 p-3 rounded-xl border border-neutral-200">
+                <div class="relative">
+                    <i data-lucide="search" class="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                    <input type="text" id="audit-filter-search" oninput="renderAuditLogTable()" placeholder="Filtra per Codice OEM o dettaglio..." class="w-full pl-9 pr-3 py-2 rounded-lg border border-neutral-300 bg-white text-xs outline-none focus:ring-2 focus:ring-[#EB7A1C]">
+                </div>
+                <div>
+                    <select id="audit-filter-action" onchange="renderAuditLogTable()" class="w-full px-3 py-2 rounded-lg border border-neutral-300 bg-white text-xs font-medium outline-none focus:ring-2 focus:ring-[#EB7A1C]">
+                        <option value="">Tutte le operazioni</option>
+                        <option value="CREATE">Nuovo Inserimento</option>
+                        <option value="QTY_STEP">Variazione Rapida (+1 / -1)</option>
+                        <option value="QTY_SUM">Somma su Duplicato</option>
+                        <option value="UPDATE">Modifica Scheda / Dati</option>
+                        <option value="DELETE">Eliminazione Articolo</option>
+                    </select>
+                </div>
+                <div>
+                    <select id="audit-filter-user" onchange="renderAuditLogTable()" class="w-full px-3 py-2 rounded-lg border border-neutral-300 bg-white text-xs font-medium outline-none focus:ring-2 focus:ring-[#EB7A1C]">
+                        <option value="">Tutti gli operatori</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Tabella Storico -->
+            <div class="overflow-y-auto flex-1 border border-neutral-200 rounded-xl">
+                <table class="w-full text-left border-collapse">
+                    <thead class="sticky top-0 bg-neutral-100 border-b border-neutral-200 text-[11px] font-bold uppercase tracking-wider text-neutral-600 z-10">
+                        <tr>
+                            <th class="py-3 px-3.5">Data / Ora</th>
+                            <th class="py-3 px-3.5">Operatore</th>
+                            <th class="py-3 px-3.5">Operazione</th>
+                            <th class="py-3 px-3.5">Codice OEM</th>
+                            <th class="py-3 px-3.5">Dettaglio Modifica</th>
+                        </tr>
+                    </thead>
+                    <tbody id="audit-log-tbody" class="divide-y divide-neutral-200 text-xs">
+                        <!-- Popolato dinamicamente -->
+                    </tbody>
+                </table>
+                <div id="audit-empty-state" class="hidden py-10 text-center text-neutral-500 text-sm">
+                    Nessun movimento registrato con i filtri selezionati.
+                </div>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-neutral-100 flex items-center justify-between shrink-0">
+                <span id="audit-count-label" class="text-xs font-semibold text-neutral-500">0 movimenti visualizzati</span>
+                <button type="button" onclick="closeAuditModal()" class="px-5 py-2 rounded-xl bg-[#3C3C3B] hover:bg-[#2B2B2A] text-white font-semibold text-sm transition">Chiudi</button>
+            </div>
+        </div>
+    </div>
+
     <!-- SCHERMATA DI AUTENTICAZIONE / ATTESA APPROVAZIONE -->
     <div id="auth-screen" class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-[#2B2B2A] via-[#3C3C3B] to-[#1f1f1e]">
         <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-7 sm:p-8 border border-neutral-200">
@@ -422,6 +495,12 @@
                         <span id="header-user-name" class="text-xs font-bold text-[#3C3C3B]"></span>
                         <span id="header-user-role-badge" class="text-[11px] font-bold px-2 py-0.5 rounded-full"></span>
                     </div>
+
+                    <!-- Bottone Storico Modifiche / Audit Log -->
+                    <button id="btn-audit-log" onclick="openAuditModal()" class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-neutral-100 hover:bg-orange-50 text-[#3C3C3B] hover:text-[#EB7A1C] border border-neutral-300 text-xs sm:text-sm font-semibold transition shadow-xs" title="Visualizza Storico Completo delle Modifiche">
+                        <i data-lucide="history" class="w-4 h-4 text-[#EB7A1C]"></i>
+                        <span class="hidden sm:inline">Storico</span>
+                    </button>
 
                     <!-- Bottone Gestione Utenti (Solo Admin) -->
                     <button id="btn-manage-users" onclick="openUsersModal()" class="hidden items-center gap-1.5 px-3 py-2 rounded-xl bg-[#3C3C3B] hover:bg-[#2B2B2A] text-white text-xs sm:text-sm font-semibold transition shadow-xs" title="Gestisci Utenti e Permessi">
@@ -750,6 +829,7 @@
         const inventoryCol = collection(db, 'artifacts', appId, 'public', 'data', 'inventory');
         const statusesCol = collection(db, 'artifacts', appId, 'public', 'data', 'statuses');
         const usersCol = collection(db, 'artifacts', appId, 'public', 'data', 'users');
+        const auditLogsCol = collection(db, 'artifacts', appId, 'public', 'data', 'audit_logs');
 
         // =========================================================================
         // 2. STATO GLOBALE DELL'APPLICAZIONE
@@ -760,6 +840,7 @@
         let filteredItems = [];
         let customStatuses = ['Nuovo', 'Usato'];
         let allUsersList = [];
+        let auditLogsList = [];
         let authMode = 'login'; // 'login' | 'register'
 
         // Gestione Foto Base64 compressa temporanea
@@ -770,6 +851,27 @@
         let unsubInventory = null;
         let unsubStatuses = null;
         let unsubUsers = null;
+        let unsubAuditLogs = null;
+
+        // Funzione centrale per registrare ogni azione nello Storico (Audit Log)
+        async function recordAuditLog({ actionType, itemId = '', oem = '', description = '', details = '' }) {
+            if (!currentUser) return;
+            try {
+                await addDoc(auditLogsCol, {
+                    actionType,
+                    itemId,
+                    oem,
+                    description,
+                    details,
+                    operatorUid: currentUser.uid,
+                    operatorName: currentUserProfile?.name || currentUser.email || 'Utente',
+                    operatorEmail: currentUser.email || '',
+                    timestampMs: Date.now()
+                });
+            } catch (err) {
+                console.error("Errore scrittura audit log:", err);
+            }
+        }
 
         // Helper permessi e ruoli
         function isAdmin() {
@@ -1099,12 +1201,28 @@
             }, (error) => {
                 console.error("Errore sincronizzazione utenti:", error);
             });
+
+            // 4. Listener Storico Modifiche (Audit Log)
+            unsubAuditLogs = onSnapshot(auditLogsCol, (snapshot) => {
+                auditLogsList = [];
+                snapshot.forEach((docSnap) => {
+                    auditLogsList.push({ id: docSnap.id, ...docSnap.data() });
+                });
+                auditLogsList.sort((a, b) => (b.timestampMs || 0) - (a.timestampMs || 0));
+                updateAuditUserFilter();
+                if (!document.getElementById('audit-modal').classList.contains('hidden')) {
+                    renderAuditLogTable();
+                }
+            }, (error) => {
+                console.error("Errore sincronizzazione storico:", error);
+            });
         }
 
         function cleanupListeners() {
             if (unsubInventory) { unsubInventory(); unsubInventory = null; }
             if (unsubStatuses) { unsubStatuses(); unsubStatuses = null; }
             if (unsubUsers) { unsubUsers(); unsubUsers = null; }
+            if (unsubAuditLogs) { unsubAuditLogs(); unsubAuditLogs = null; }
         }
 
         // =========================================================================
@@ -1369,7 +1487,17 @@
                 if (newPhoto) {
                     updateFields.photoBase64 = newPhoto;
                 }
+                const targetItem = inventoryItems.find(i => i.id === existingDocId);
+                const prevQty = targetItem ? Number(targetItem.quantity) || 0 : '?';
+                const newQty = typeof prevQty === 'number' ? prevQty + qtyToAdd : '?';
                 await updateDoc(docRef, updateFields);
+                await recordAuditLog({
+                    actionType: 'QTY_SUM',
+                    itemId: existingDocId,
+                    oem: pendingNewItemData.oem,
+                    description: targetItem?.description || pendingNewItemData.description,
+                    details: `Sommati +${qtyToAdd} pz su ubicazione "${targetItem?.location || '—'}" (Giacenza: ${prevQty} → ${newQty} pz)`
+                });
                 closeDuplicateModal();
                 resetAddForm();
                 showToast(`Quantità sommata (+${qtyToAdd} pz) in modo sicuro!`, "success");
@@ -1392,7 +1520,14 @@
             btn.classList.add('opacity-70');
 
             try {
-                await addDoc(inventoryCol, payload);
+                const createdRef = await addDoc(inventoryCol, payload);
+                await recordAuditLog({
+                    actionType: 'CREATE',
+                    itemId: createdRef.id,
+                    oem: payload.oem,
+                    description: payload.description,
+                    details: `Nuovo inserimento: ${payload.quantity} pz | Ubicazione: ${payload.location} | Stato: ${payload.status}${payload.notes ? ' | Note: ' + payload.notes : ''}`
+                });
                 resetAddForm();
                 showToast(`Ricambio ${payload.oem} registrato!`, "success");
             } catch (err) {
@@ -1547,7 +1682,7 @@
                     </td>
                 ` : '';
 
-                const timeStr = item.updatedAtMs ? new Date(item.updatedAtMs).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+                const timeStr = item.updatedAtMs ? new Date(item.updatedAtMs).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
 
                 return `
                     <tr class="hover:bg-orange-50/30 transition">
@@ -1626,12 +1761,21 @@
                 return;
             }
             try {
+                const targetItem = inventoryItems.find(i => i.id === docId);
+                const nextQty = safeCurrent + delta;
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'inventory', docId);
                 await updateDoc(docRef, {
                     quantity: increment(delta),
                     updatedByUid: currentUser.uid,
                     updatedByName: currentUserProfile.name || currentUser.email,
                     updatedAtMs: Date.now()
+                });
+                await recordAuditLog({
+                    actionType: 'QTY_STEP',
+                    itemId: docId,
+                    oem: targetItem?.oem || '—',
+                    description: targetItem?.description || '',
+                    details: `Variazione rapida (${delta > 0 ? '+1' : '-1'} pz) su "${targetItem?.location || '—'}": da ${safeCurrent} a ${nextQty} pz`
                 });
             } catch (err) {
                 console.error("Errore variazione quantità:", err);
@@ -1763,8 +1907,39 @@
             }
 
             try {
+                const changes = [];
+                if (editingItemOriginal) {
+                    if (editingItemOriginal.oem !== oem) changes.push(`OEM: ${editingItemOriginal.oem} → ${oem}`);
+                    if (editingItemOriginal.description !== description) changes.push(`Descrizione aggiornata`);
+                    if (editingItemOriginal.location !== location) changes.push(`Ubicazione: "${editingItemOriginal.location}" → "${location}"`);
+                    if (editingItemOriginal.status !== status) changes.push(`Stato: ${editingItemOriginal.status} → ${status}`);
+                    if ((editingItemOriginal.notes || '') !== notes) changes.push(`Note: "${editingItemOriginal.notes || '—'}" → "${notes || '—'}"`);
+                    if (canModifyStock() && payload.quantity !== undefined && Number(editingItemOriginal.quantity) !== payload.quantity) {
+                        changes.push(`Giacenza: ${editingItemOriginal.quantity} → ${payload.quantity} pz`);
+                    }
+                    if (canViewFinance()) {
+                        if ((editingItemOriginal.cost ?? null) !== (payload.cost ?? null)) {
+                            changes.push(`Costo: ${editingItemOriginal.cost ?? '—'} → ${payload.cost ?? '—'} €`);
+                        }
+                        if ((editingItemOriginal.price ?? null) !== (payload.price ?? null)) {
+                            changes.push(`Prezzo: ${editingItemOriginal.price ?? '—'} → ${payload.price ?? '—'} €`);
+                        }
+                    }
+                    if (Boolean(editingItemOriginal.photoBase64) !== Boolean(payload.photoBase64)) {
+                        changes.push(payload.photoBase64 ? 'Foto aggiunta/aggiornata' : 'Foto rimossa');
+                    }
+                }
+                const detailSummary = changes.length > 0 ? changes.join(' | ') : 'Salvataggio scheda senza variazioni sostanziali';
+
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'inventory', docId);
                 await updateDoc(docRef, payload);
+                await recordAuditLog({
+                    actionType: 'UPDATE',
+                    itemId: docId,
+                    oem,
+                    description,
+                    details: detailSummary
+                });
                 closeEditModal();
                 showToast(`Ricambio ${oem} aggiornato!`, "success");
             } catch (err) {
@@ -1795,8 +1970,16 @@
         document.getElementById('confirm-delete-btn')?.addEventListener('click', async () => {
             if (!pendingDeleteDocId || !currentUser) return;
             const targetId = pendingDeleteDocId;
+            const targetItem = inventoryItems.find(i => i.id === targetId);
             try {
                 await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', targetId));
+                await recordAuditLog({
+                    actionType: 'DELETE',
+                    itemId: targetId,
+                    oem: targetItem?.oem || '—',
+                    description: targetItem?.description || '',
+                    details: `Eliminato articolo (${targetItem?.quantity ?? 0} pz, Ubicazione: ${targetItem?.location || '—'}, Stato: ${targetItem?.status || '—'})`
+                });
                 closeDeleteModal();
                 showToast("Ricambio eliminato dall'inventario.", "success");
             } catch (err) {
@@ -2021,6 +2204,176 @@
                 `;
             }).join('');
         }
+
+        // =========================================================================
+        // 9B. SCHERMATA STORICO MOVIMENTI & MODIFICHE (AUDIT LOG)
+        // =========================================================================
+        window.openAuditModal = () => {
+            updateAuditUserFilter();
+            renderAuditLogTable();
+            document.getElementById('audit-modal').classList.remove('hidden');
+            document.getElementById('audit-modal').classList.add('flex');
+            lucide.createIcons();
+        };
+
+        window.closeAuditModal = () => {
+            document.getElementById('audit-modal').classList.add('hidden');
+            document.getElementById('audit-modal').classList.remove('flex');
+        };
+
+        function updateAuditUserFilter() {
+            const selectEl = document.getElementById('audit-filter-user');
+            if (!selectEl) return;
+            const prev = selectEl.value;
+            const operators = new Set();
+            auditLogsList.forEach(log => {
+                if (log.operatorName) operators.add(log.operatorName);
+            });
+            const sorted = Array.from(operators).sort((a, b) => a.localeCompare(b));
+            selectEl.innerHTML = `<option value="">Tutti gli operatori</option>` +
+                sorted.map(op => `<option value="${escapeHtml(op)}">${escapeHtml(op)}</option>`).join('');
+            selectEl.value = prev;
+        }
+
+        function getFilteredAuditLogs() {
+            const search = (document.getElementById('audit-filter-search')?.value || '').trim().toLowerCase();
+            const actionFilter = document.getElementById('audit-filter-action')?.value || '';
+            const userFilter = document.getElementById('audit-filter-user')?.value || '';
+
+            return auditLogsList.filter(log => {
+                const matchAction = !actionFilter || log.actionType === actionFilter;
+                const matchUser = !userFilter || log.operatorName === userFilter;
+                const matchSearch = !search ||
+                    (log.oem && log.oem.toLowerCase().includes(search)) ||
+                    (log.description && log.description.toLowerCase().includes(search)) ||
+                    (log.details && log.details.toLowerCase().includes(search)) ||
+                    (log.operatorName && log.operatorName.toLowerCase().includes(search));
+                return matchAction && matchUser && matchSearch;
+            });
+        }
+
+        function getActionBadgeHtml(actionType) {
+            switch (actionType) {
+                case 'CREATE':
+                    return `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 whitespace-nowrap">Inserimento</span>`;
+                case 'QTY_STEP':
+                    return `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-orange-100 text-[#EB7A1C] border border-orange-200 whitespace-nowrap">Giacenza +/-</span>`;
+                case 'QTY_SUM':
+                    return `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200 whitespace-nowrap">Somma Duplicato</span>`;
+                case 'UPDATE':
+                    return `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-sky-100 text-sky-800 border border-sky-200 whitespace-nowrap">Modifica</span>`;
+                case 'DELETE':
+                    return `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-800 border border-red-200 whitespace-nowrap">Eliminazione</span>`;
+                default:
+                    return `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-neutral-100 text-neutral-700 whitespace-nowrap">${escapeHtml(actionType || 'Azione')}</span>`;
+            }
+        }
+
+        window.renderAuditLogTable = () => {
+            const tbody = document.getElementById('audit-log-tbody');
+            const emptyEl = document.getElementById('audit-empty-state');
+            const countLabel = document.getElementById('audit-count-label');
+            if (!tbody) return;
+
+            const logs = getFilteredAuditLogs();
+            if (countLabel) {
+                countLabel.textContent = `${logs.length} moviment${logs.length === 1 ? 'o' : 'i'} registrat${logs.length === 1 ? 'o' : 'i'}`;
+            }
+
+            if (logs.length === 0) {
+                tbody.innerHTML = '';
+                emptyEl?.classList.remove('hidden');
+                return;
+            }
+
+            emptyEl?.classList.add('hidden');
+            const showFinanceDetails = canViewFinance();
+
+            tbody.innerHTML = logs.map(log => {
+                const dt = log.timestampMs
+                    ? new Date(log.timestampMs).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                    : '—';
+
+                // Nasconde eventuali menzioni a Costo/Prezzo nello storico se l'utente corrente non è Admin
+                let safeDetails = log.details || '';
+                if (!showFinanceDetails && safeDetails) {
+                    safeDetails = safeDetails
+                        .split(' | ')
+                        .filter(part => !part.startsWith('Costo:') && !part.startsWith('Prezzo:'))
+                        .join(' | ') || 'Aggiornamento dati riservati';
+                }
+
+                return `
+                    <tr class="hover:bg-neutral-50 transition">
+                        <td class="py-2.5 px-3.5 whitespace-nowrap text-neutral-600 font-mono text-[11px]">${dt}</td>
+                        <td class="py-2.5 px-3.5 whitespace-nowrap">
+                            <div class="font-bold text-[#3C3C3B]">${escapeHtml(log.operatorName || '—')}</div>
+                            <div class="text-[10px] text-neutral-400">${escapeHtml(log.operatorEmail || '')}</div>
+                        </td>
+                        <td class="py-2.5 px-3.5 whitespace-nowrap">${getActionBadgeHtml(log.actionType)}</td>
+                        <td class="py-2.5 px-3.5 whitespace-nowrap font-mono font-bold text-[#3C3C3B]">${escapeHtml(log.oem || '—')}</td>
+                        <td class="py-2.5 px-3.5">
+                            ${log.description ? `<div class="font-semibold text-neutral-800">${escapeHtml(log.description)}</div>` : ''}
+                            <div class="text-neutral-600 mt-0.5">${escapeHtml(safeDetails)}</div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        };
+
+        window.exportAuditLogCSV = () => {
+            const logs = getFilteredAuditLogs();
+            if (logs.length === 0) {
+                showToast("Nessun movimento da esportare.", "info");
+                return;
+            }
+
+            const showFinanceDetails = canViewFinance();
+            const actionLabels = {
+                CREATE: 'Inserimento',
+                QTY_STEP: 'Variazione Rapida (+/-1)',
+                QTY_SUM: 'Somma Duplicato',
+                UPDATE: 'Modifica',
+                DELETE: 'Eliminazione'
+            };
+
+            const headers = ["Data e Ora", "Operatore", "Email Operatore", "Tipo Operazione", "Codice OEM", "Descrizione Articolo", "Dettaglio Modifica"];
+            const rows = logs.map(log => {
+                const dt = log.timestampMs ? new Date(log.timestampMs).toLocaleString('it-IT') : '';
+                let safeDetails = log.details || '';
+                if (!showFinanceDetails && safeDetails) {
+                    safeDetails = safeDetails
+                        .split(' | ')
+                        .filter(part => !part.startsWith('Costo:') && !part.startsWith('Prezzo:'))
+                        .join(' | ');
+                }
+                const cols = [
+                    dt,
+                    log.operatorName || '',
+                    log.operatorEmail || '',
+                    actionLabels[log.actionType] || log.actionType || '',
+                    log.oem || '',
+                    log.description || '',
+                    safeDetails
+                ];
+                return cols.map(val => `"${String(val).replace(/"/g, '""')}"`).join(';');
+            });
+
+            const csvContent = "\uFEFF" + [headers.join(';'), ...rows].join('\r\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+
+            const link = document.createElement('a');
+            const dateTag = new Date().toISOString().slice(0, 10);
+            link.href = url;
+            link.download = `TiRecupero_Storico_Modifiche_${dateTag}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            showToast(`Esportati ${logs.length} movimenti dello storico!`, "success");
+        };
 
         // =========================================================================
         // 10. ESPORTAZIONE CSV (EXCEL COMPATIBILE + RISPETTO PERMESSI COSTO/PREZZO)
