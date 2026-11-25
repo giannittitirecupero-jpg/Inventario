@@ -134,8 +134,11 @@
                         <input type="text" id="edit-oem" required class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 font-mono uppercase focus:ring-2 focus:ring-[#EB7A1C] outline-none">
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-neutral-700 mb-1">Quantità *</label>
-                        <input type="number" id="edit-qty" min="0" required class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 font-bold focus:ring-2 focus:ring-[#EB7A1C] outline-none">
+                        <label class="block text-sm font-semibold text-neutral-700 mb-1 flex items-center justify-between">
+                            <span>Quantità *</span>
+                            <span id="edit-qty-lock-hint" class="hidden text-[11px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Solo Admin</span>
+                        </label>
+                        <input type="number" id="edit-qty" min="0" required class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 font-bold focus:ring-2 focus:ring-[#EB7A1C] outline-none disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed">
                     </div>
                 </div>
 
@@ -215,23 +218,49 @@
                         <i data-lucide="shield-check" class="w-6 h-6 text-[#EB7A1C]"></i>
                         Gestione Utenti & Permessi TiRecupero
                     </h3>
-                    <p class="text-xs text-neutral-500 mt-0.5">Controlla chi può accedere al magazzino e chi è autorizzato a visualizzare Costi e Prezzi.</p>
+                    <p class="text-xs text-neutral-500 mt-0.5">Crea nuovi utenti, assegna i profili (Admin, Operatore, Visualizzatore) e gestisci i permessi sulle giacenze.</p>
                 </div>
                 <button onclick="closeUsersModal()" class="text-neutral-400 hover:text-neutral-600 p-2 rounded-lg">
                     <i data-lucide="x" class="w-6 h-6"></i>
                 </button>
             </div>
 
-            <!-- Pre-autorizzazione Email -->
-            <div class="bg-neutral-50 p-4 rounded-xl border border-neutral-200 mb-5">
-                <h4 class="text-sm font-bold text-[#3C3C3B] mb-2">Pre-autorizza nuovo utente tramite Email</h4>
-                <form onsubmit="handlePreAuthorizeEmail(event)" class="flex flex-col sm:flex-row gap-2">
-                    <input type="email" id="preauth-email" required placeholder="operatore@tirecupero.it" class="flex-1 px-3.5 py-2.5 rounded-xl border border-neutral-300 text-sm outline-none focus:ring-2 focus:ring-[#EB7A1C]">
-                    <select id="preauth-role" class="px-3.5 py-2.5 rounded-xl border border-neutral-300 bg-white text-sm font-medium outline-none">
-                        <option value="operator">Operatore Magazzino (No Costi/Prezzi)</option>
-                        <option value="admin">Amministratore / Autorizzato Finanza</option>
+            <!-- Creazione Diretta Nuovo Account Utente (Senza disconnettere l'Admin) -->
+            <div class="bg-orange-50/70 p-4 rounded-xl border border-orange-200 mb-4">
+                <h4 class="text-sm font-bold text-[#3C3C3B] mb-1 flex items-center gap-1.5">
+                    <i data-lucide="user-plus" class="w-4 h-4 text-[#EB7A1C]"></i>
+                    Crea Nuovo Account Utente (Accesso Immediato)
+                </h4>
+                <p class="text-xs text-neutral-600 mb-3">Crea direttamente credenziali email/password e assegna il profilo senza uscire dalla tua sessione.</p>
+                <form onsubmit="handleAdminCreateUser(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5">
+                    <input type="text" id="admin-new-name" required placeholder="Nome e Cognome" class="lg:col-span-3 px-3.5 py-2.5 rounded-xl border border-neutral-300 bg-white text-sm outline-none focus:ring-2 focus:ring-[#EB7A1C]">
+                    <input type="email" id="admin-new-email" required placeholder="email@tirecupero.it" class="lg:col-span-3 px-3.5 py-2.5 rounded-xl border border-neutral-300 bg-white text-sm outline-none focus:ring-2 focus:ring-[#EB7A1C]">
+                    <input type="password" id="admin-new-password" required minlength="6" placeholder="Password (min 6 car.)" class="lg:col-span-3 px-3.5 py-2.5 rounded-xl border border-neutral-300 bg-white text-sm outline-none focus:ring-2 focus:ring-[#EB7A1C]">
+                    <select id="admin-new-role" class="lg:col-span-3 px-3.5 py-2.5 rounded-xl border border-neutral-300 bg-white text-sm font-medium outline-none focus:ring-2 focus:ring-[#EB7A1C]">
+                        <option value="operator">Operatore (Solo Inserimento)</option>
+                        <option value="viewer">Visualizzatore (Sola Lettura)</option>
+                        <option value="admin">Amministratore (Controllo Totale)</option>
                     </select>
-                    <button type="submit" class="px-4 py-2.5 rounded-xl bg-[#EB7A1C] hover:bg-[#D46810] text-white text-sm font-semibold whitespace-nowrap transition">
+                    <div class="sm:col-span-2 lg:col-span-12 flex justify-end">
+                        <button type="submit" id="btn-admin-create-user" class="px-5 py-2.5 rounded-xl bg-[#EB7A1C] hover:bg-[#D46810] text-white text-sm font-bold transition shadow-xs flex items-center gap-1.5">
+                            <i data-lucide="user-check" class="w-4 h-4"></i>
+                            <span>Crea Utente e Attiva</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Pre-autorizzazione Email (per accesso con Google o auto-registrazione) -->
+            <div class="bg-neutral-50 p-4 rounded-xl border border-neutral-200 mb-5">
+                <h4 class="text-sm font-bold text-[#3C3C3B] mb-2">Oppure Pre-autorizza Email (per login Google / self-service)</h4>
+                <form onsubmit="handlePreAuthorizeEmail(event)" class="flex flex-col sm:flex-row gap-2">
+                    <input type="email" id="preauth-email" required placeholder="operatore@tirecupero.it" class="flex-1 px-3.5 py-2.5 rounded-xl border border-neutral-300 bg-white text-sm outline-none focus:ring-2 focus:ring-[#EB7A1C]">
+                    <select id="preauth-role" class="px-3.5 py-2.5 rounded-xl border border-neutral-300 bg-white text-sm font-medium outline-none">
+                        <option value="operator">Operatore (Solo Inserimento)</option>
+                        <option value="viewer">Visualizzatore (Sola Lettura)</option>
+                        <option value="admin">Amministratore (Controllo Totale)</option>
+                    </select>
+                    <button type="submit" class="px-4 py-2.5 rounded-xl bg-[#3C3C3B] hover:bg-[#2B2B2A] text-white text-sm font-semibold whitespace-nowrap transition">
                         Autorizza Email
                     </button>
                 </form>
@@ -461,8 +490,8 @@
                 </div>
             </section>
 
-            <!-- Modulo Nuovo Inserimento Ricambio -->
-            <section class="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
+            <!-- Modulo Nuovo Inserimento Ricambio (Nascosto ai Visualizzatori) -->
+            <section id="add-part-section" class="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
                 <div class="bg-[#3C3C3B] text-white px-5 py-3.5 flex items-center justify-between">
                     <h2 class="font-bold flex items-center gap-2 text-base sm:text-lg">
                         <i data-lucide="plus-circle" class="w-5 h-5 text-[#EB7A1C]"></i>
@@ -742,10 +771,23 @@
         let unsubStatuses = null;
         let unsubUsers = null;
 
-        // Helper permessi finanziari
-        function canViewFinance() {
+        // Helper permessi e ruoli
+        function isAdmin() {
             if (!currentUserProfile || currentUserProfile.approved !== true) return false;
             return ['admin', 'finance'].includes(currentUserProfile.role);
+        }
+
+        function canViewFinance() {
+            return isAdmin();
+        }
+
+        function canModifyStock() {
+            return isAdmin();
+        }
+
+        function canInsertParts() {
+            if (!currentUserProfile || currentUserProfile.approved !== true) return false;
+            return ['admin', 'finance', 'operator'].includes(currentUserProfile.role);
         }
 
         // =========================================================================
@@ -958,11 +1000,16 @@
             const roleBadge = document.getElementById('header-user-role-badge');
             const btnManageUsers = document.getElementById('btn-manage-users');
 
-            if (canViewFinance()) {
-                roleBadge.textContent = "Amministratore / Autorizzato Finanza";
+            if (isAdmin()) {
+                roleBadge.textContent = "Amministratore (Controllo Totale)";
                 roleBadge.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-[#EB7A1C] border border-orange-200";
                 btnManageUsers.classList.remove('hidden');
                 btnManageUsers.classList.add('flex');
+            } else if (currentUserProfile.role === 'viewer') {
+                roleBadge.textContent = "Visualizzatore (Sola Lettura)";
+                roleBadge.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200";
+                btnManageUsers.classList.add('hidden');
+                btnManageUsers.classList.remove('flex');
             } else {
                 roleBadge.textContent = "Operatore Magazzino";
                 roleBadge.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-neutral-100 text-[#3C3C3B] border border-neutral-200";
@@ -970,7 +1017,10 @@
                 btnManageUsers.classList.remove('flex');
             }
 
-            // Visibilità rigorosa campi Costo e Prezzo
+            // Modulo inserimento: visibile solo ad Admin e Operatori (nascosto a Visualizzatori)
+            toggleElementVisibility('add-part-section', canInsertParts(), 'block');
+
+            // Visibilità rigorosa campi Costo e Prezzo (solo Admin)
             const isAuthorized = canViewFinance();
             toggleElementVisibility('form-finance-section', isAuthorized);
             toggleElementVisibility('kpi-total-cost-card', isAuthorized, 'flex');
@@ -1205,7 +1255,10 @@
 
         window.handleFormSubmit = async (e) => {
             e.preventDefault();
-            if (!currentUser || !currentUserProfile?.approved) return;
+            if (!currentUser || !currentUserProfile?.approved || !canInsertParts()) {
+                showToast("Il tuo profilo non è abilitato all'inserimento.", "warning");
+                return;
+            }
 
             const oem = document.getElementById('input-oem').value.trim().toUpperCase().replace(/\s+/g, '');
             const description = document.getElementById('input-desc').value.trim();
@@ -1255,6 +1308,7 @@
         function openDuplicateModal(oem, addQty, matches) {
             document.getElementById('dup-oem-code').textContent = oem;
             document.getElementById('dup-add-qty').textContent = addQty;
+            const allowSum = canModifyStock();
 
             const listEl = document.getElementById('dup-existing-list');
             listEl.innerHTML = matches.map(m => `
@@ -1270,9 +1324,15 @@
                         <p class="text-xs text-neutral-600 truncate mt-0.5">${escapeHtml(m.description)}</p>
                         <p class="text-xs font-bold text-neutral-800 mt-1">Giacenza attuale: <span class="text-[#EB7A1C]">${m.quantity} pz</span></p>
                     </div>
+                    ${allowSum ? `
                     <button type="button" onclick="sumToExistingItem('${m.id}')" class="px-3.5 py-2.5 rounded-xl bg-[#EB7A1C] hover:bg-[#D46810] text-white text-xs font-bold shrink-0 shadow-xs transition">
                         + Somma (+${addQty})
                     </button>
+                    ` : `
+                    <span class="text-[11px] font-semibold text-neutral-500 bg-neutral-200/80 px-2.5 py-1.5 rounded-lg shrink-0" title="Solo l'Amministratore può sommare giacenze esistenti">
+                        Somma solo Admin
+                    </span>
+                    `}
                 </div>
             `).join('');
 
@@ -1290,6 +1350,10 @@
         // Somma atomica (increment) sulla riga esistente per proteggere da sovrascritture simultanee
         window.sumToExistingItem = async (existingDocId) => {
             if (!pendingNewItemData || !currentUser) return;
+            if (!canModifyStock()) {
+                showToast("Solo l'Amministratore può modificare le giacenze esistenti.", "warning");
+                return;
+            }
             const qtyToAdd = pendingNewItemData.quantity;
             const newPhoto = pendingNewItemData.photoBase64;
 
@@ -1507,6 +1571,7 @@
                             </span>
                         </td>
                         <td class="py-3 px-4">
+                            ${canModifyStock() ? `
                             <div class="flex items-center justify-center gap-1.5">
                                 <button type="button" onclick="atomicStepQuantity('${item.id}', -1, ${item.quantity})" class="w-9 h-9 rounded-lg bg-neutral-100 hover:bg-neutral-200 active:bg-neutral-300 border border-neutral-300 font-bold text-[#3C3C3B] flex items-center justify-center transition" title="Rimuovi 1">
                                     -
@@ -1516,6 +1581,11 @@
                                     +
                                 </button>
                             </div>
+                            ` : `
+                            <div class="flex items-center justify-center">
+                                <span class="px-3 py-1 rounded-lg bg-neutral-100 border border-neutral-200 font-extrabold text-base text-[#3C3C3B]" title="Modifica giacenza riservata all'Amministratore">${item.quantity}</span>
+                            </div>
+                            `}
                         </td>
                         ${financeCell}
                         <td class="py-3 px-4 hidden lg:table-cell whitespace-nowrap">
@@ -1524,12 +1594,16 @@
                         </td>
                         <td class="py-3 px-4 text-right whitespace-nowrap">
                             <div class="inline-flex items-center gap-1">
-                                <button type="button" onclick="openEditModal('${item.id}')" class="p-2.5 rounded-xl text-neutral-600 hover:text-[#EB7A1C] hover:bg-orange-50 transition" title="Modifica">
+                                ${canInsertParts() ? `
+                                <button type="button" onclick="openEditModal('${item.id}')" class="p-2.5 rounded-xl text-neutral-600 hover:text-[#EB7A1C] hover:bg-orange-50 transition" title="Modifica dettagli">
                                     <i data-lucide="pencil" class="w-4 h-4"></i>
                                 </button>
+                                ` : ''}
+                                ${canModifyStock() ? `
                                 <button type="button" onclick="openDeleteModal('${item.id}')" class="p-2.5 rounded-xl text-neutral-600 hover:text-red-600 hover:bg-red-50 transition" title="Elimina">
                                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                                 </button>
+                                ` : (!canInsertParts() ? '<span class="text-xs text-neutral-400 italic">Sola lettura</span>' : '')}
                             </div>
                         </td>
                     </tr>
@@ -1542,6 +1616,10 @@
         // Incremento / Decremento atomico direttamente dalla tabella
         window.atomicStepQuantity = async (docId, delta, currentQty) => {
             if (!currentUser || !currentUserProfile?.approved) return;
+            if (!canModifyStock()) {
+                showToast("Solo l'Amministratore può modificare le giacenze.", "warning");
+                return;
+            }
             const safeCurrent = Number(currentQty) || 0;
             if (delta < 0 && safeCurrent + delta < 0) {
                 showToast("La quantità non può scendere sotto 0.", "warning");
@@ -1565,13 +1643,26 @@
         let editingItemOriginal = null;
 
         window.openEditModal = (docId) => {
+            if (!canInsertParts()) {
+                showToast("Profilo in sola lettura: modifica non consentita.", "warning");
+                return;
+            }
             const item = inventoryItems.find(i => i.id === docId);
             if (!item) return;
             editingItemOriginal = item;
 
             document.getElementById('edit-id').value = item.id;
             document.getElementById('edit-oem').value = item.oem || '';
-            document.getElementById('edit-qty').value = item.quantity ?? 1;
+            const editQtyInput = document.getElementById('edit-qty');
+            const editQtyHint = document.getElementById('edit-qty-lock-hint');
+            editQtyInput.value = item.quantity ?? 1;
+            if (canModifyStock()) {
+                editQtyInput.disabled = false;
+                editQtyHint.classList.add('hidden');
+            } else {
+                editQtyInput.disabled = true;
+                editQtyHint.classList.remove('hidden');
+            }
             document.getElementById('edit-desc').value = item.description || '';
             document.getElementById('edit-location').value = item.location || '';
             document.getElementById('edit-status').value = item.status || 'Nuovo';
@@ -1638,11 +1729,10 @@
 
         window.handleEditSubmit = async (e) => {
             e.preventDefault();
-            if (!currentUser || !currentUserProfile?.approved) return;
+            if (!currentUser || !currentUserProfile?.approved || !canInsertParts()) return;
 
             const docId = document.getElementById('edit-id').value;
             const oem = document.getElementById('edit-oem').value.trim().toUpperCase().replace(/\s+/g, '');
-            const quantity = Math.max(0, parseInt(document.getElementById('edit-qty').value, 10) || 0);
             const description = document.getElementById('edit-desc').value.trim();
             const location = document.getElementById('edit-location').value.trim();
             const status = document.getElementById('edit-status').value;
@@ -1650,7 +1740,6 @@
 
             const payload = {
                 oem,
-                quantity,
                 description,
                 location,
                 status,
@@ -1660,6 +1749,11 @@
                 updatedByName: currentUserProfile.name || currentUser.email,
                 updatedAtMs: Date.now()
             };
+
+            // Solo l'Amministratore può aggiornare la quantità di giacenza
+            if (canModifyStock()) {
+                payload.quantity = Math.max(0, parseInt(document.getElementById('edit-qty').value, 10) || 0);
+            }
 
             if (canViewFinance()) {
                 const rawCost = document.getElementById('edit-cost').value;
@@ -1683,6 +1777,10 @@
         let pendingDeleteDocId = null;
 
         window.openDeleteModal = (docId) => {
+            if (!canModifyStock()) {
+                showToast("Solo l'Amministratore può eliminare articoli dall'inventario.", "warning");
+                return;
+            }
             pendingDeleteDocId = docId;
             document.getElementById('delete-modal').classList.remove('hidden');
             document.getElementById('delete-modal').classList.add('flex');
@@ -1724,6 +1822,84 @@
         window.closeUsersModal = () => {
             document.getElementById('users-modal').classList.add('hidden');
             document.getElementById('users-modal').classList.remove('flex');
+        };
+
+        // Creazione diretta utente tramite istanza Firebase secondaria (non disconnette l'Admin corrente)
+        window.handleAdminCreateUser = async (e) => {
+            e.preventDefault();
+            if (!isAdmin()) return;
+
+            const name = document.getElementById('admin-new-name').value.trim();
+            const email = document.getElementById('admin-new-email').value.trim().toLowerCase();
+            const password = document.getElementById('admin-new-password').value;
+            const role = document.getElementById('admin-new-role').value;
+
+            if (!email || !password) return;
+
+            const btn = document.getElementById('btn-admin-create-user');
+            btn.disabled = true;
+            btn.classList.add('opacity-70');
+
+            let secondaryApp = null;
+            try {
+                const secondaryAppName = 'SecondaryUserCreator_' + Date.now();
+                secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+                const secondaryAuth = getAuth(secondaryApp);
+
+                const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+                if (name) {
+                    await updateProfile(cred.user, { displayName: name });
+                }
+
+                // Rimuove eventuali vecchi record pre-auth con la stessa email
+                const oldPreAuths = allUsersList.filter(u => u.email && u.email.toLowerCase() === email && u.id !== cred.user.uid);
+                for (const oldDoc of oldPreAuths) {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', oldDoc.id));
+                }
+
+                // Salva il profilo utente attivo su Firestore
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', cred.user.uid), {
+                    uid: cred.user.uid,
+                    email: email,
+                    name: name || email.split('@')[0],
+                    role: role,
+                    approved: true,
+                    createdByAdmin: currentUserProfile.email,
+                    createdAt: new Date().toISOString()
+                });
+
+                await signOut(secondaryAuth);
+
+                document.getElementById('admin-new-name').value = '';
+                document.getElementById('admin-new-email').value = '';
+                document.getElementById('admin-new-password').value = '';
+                document.getElementById('admin-new-role').value = 'operator';
+
+                showToast(`Account creato e attivato per ${name || email}!`, "success");
+            } catch (err) {
+                console.error("Errore creazione utente da admin:", err);
+                let msg = "Errore durante la creazione dell'utente.";
+                if (err.code === 'auth/email-already-in-use') msg = "Questa email ha già un account Firebase attivo.";
+                if (err.code === 'auth/weak-password') msg = "La password deve contenere almeno 6 caratteri.";
+                if (err.code === 'auth/invalid-email') msg = "Indirizzo email non valido.";
+                showToast(msg, "error");
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-70');
+            }
+        };
+
+        window.deleteUserRecord = async (userDocId, userEmail) => {
+            if (!isAdmin()) return;
+            if (currentUser && userDocId === currentUser.uid) return;
+            if (!confirm(`Vuoi rimuovere "${userEmail}" dall'elenco utenti autorizzati?`)) return;
+            try {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userDocId));
+                showToast("Utente rimosso dall'elenco.", "info");
+            } catch (err) {
+                console.error("Errore rimozione utente:", err);
+                showToast("Errore durante la rimozione.", "error");
+            }
         };
 
         window.handlePreAuthorizeEmail = async (e) => {
@@ -1824,15 +2000,22 @@
                             <p class="text-xs text-neutral-500 truncate">${escapeHtml(u.email || '')}</p>
                         </div>
 
-                        <div class="flex items-center gap-2 shrink-0">
+                        <div class="flex items-center gap-2 shrink-0 flex-wrap">
                             <select onchange="changeUserRole('${u.id}', this.value)" ${isSelf ? 'disabled' : ''} class="px-2.5 py-1.5 rounded-lg border border-neutral-300 bg-white text-xs font-semibold outline-none disabled:opacity-60">
                                 <option value="operator" ${u.role === 'operator' ? 'selected' : ''}>Operatore</option>
-                                <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin / Finanza</option>
+                                <option value="viewer" ${u.role === 'viewer' ? 'selected' : ''}>Visualizzatore</option>
+                                <option value="admin" ${['admin', 'finance'].includes(u.role) ? 'selected' : ''}>Amministratore</option>
                             </select>
 
-                            <button type="button" onclick="toggleUserApproval('${u.id}', ${Boolean(u.approved)})" ${isSelf ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg text-xs font-bold transition disabled:opacity-50 ${u.approved ? 'bg-neutral-100 hover:bg-red-50 text-neutral-700 hover:text-red-600 border border-neutral-300' : 'bg-[#EB7A1C] hover:bg-[#D46810] text-white'}">
+                            <button type="button" onclick="toggleUserApproval('${u.id}', ${Boolean(u.approved)})" ${isSelf ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg text-xs font-bold transition disabled:opacity-50 ${u.approved ? 'bg-neutral-100 hover:bg-amber-50 text-neutral-700 hover:text-amber-700 border border-neutral-300' : 'bg-[#EB7A1C] hover:bg-[#D46810] text-white'}">
                                 ${u.approved ? 'Sospendi' : 'Approva'}
                             </button>
+
+                            ${!isSelf ? `
+                            <button type="button" onclick="deleteUserRecord('${u.id}', '${escapeHtml(u.email || u.name)}')" class="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50 transition" title="Rimuovi dall'elenco">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                            ` : ''}
                         </div>
                     </div>
                 `;
